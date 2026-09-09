@@ -30,7 +30,6 @@
     MAX_UPLOAD_BYTES: 15 * 1024 * 1024,  // reject bigger source files
     MAX_IMPORT_IMAGE_BYTES: 6 * 1024 * 1024,
     TITLE_MAX: 40,
-    TAGLINE_MAX: 80,
     // Every skin is normalised to this square: transparent margins trimmed,
     // then the logo fitted inside with even padding. So a brand that ships
     // with baked-in whitespace, or a wide wordmark, renders the SAME size on
@@ -44,7 +43,6 @@
 
   var DEFAULTS = {
     title: 'WP FLAPPY CHALLENGE',
-    tagline: 'WP/CONNECT × DIGICON 2026',
     // Keys that flap (and start / restart a run). W was the hard-coded key.
     flapKeys: [{ code: 'KeyW', key: 'w', label: 'W' }],
     // Which brand the bird wears: 'random' (a new pick every run) or one
@@ -55,7 +53,7 @@
   // Deck artwork shipped with the game (WP Gaming DigiCon 2026 deck). Relative
   // to the folder both pages are served from.
   var ART = {
-    logo: 'assets/plug-play-title.png',   // PLUG & PLAY title art (menu hero)
+    logo: 'assets/plug%20n%20play.png',   // PLUG & PLAY title art (menu hero, DigiCon 2026 deck)
     mark: 'assets/wpg-logo.png'           // WP/G mark ("presented by")
   };
 
@@ -164,7 +162,6 @@
     var out = {
       version: SCHEMA_VERSION,
       title: cleanText(src.title, LIMITS.TITLE_MAX, DEFAULTS.title),
-      tagline: cleanText(src.tagline, LIMITS.TAGLINE_MAX, DEFAULTS.tagline),
       flapKeys: normalizeKeys(src.flapKeys),
       skinMode: normalizeSkinMode(src.skinMode)
     };
@@ -536,7 +533,6 @@
           exportedAt: now.toISOString(),
           settings: {
             title: cfg.settings.title,
-            tagline: cfg.settings.tagline,
             flapKeys: cfg.settings.flapKeys,
             skinMode: cfg.settings.skinMode
           },

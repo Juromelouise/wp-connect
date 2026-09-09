@@ -46,7 +46,7 @@ progress when the window closes still saves.
 
 ## 2b. WP Flappy Challenge config
 
-- `wp-bird/admin.html` (passcode `BIRD2026`) sets the menu **Title** and **Tagline**, the menu
+- `wp-bird/admin.html` (passcode `BIRD2026`) sets the menu **Title**, the menu
   **Logo** and the "Presented by" **Mark**, and the **Bird skins** gallery: up to 12 brand images.
   **Every run the bird wears one of them at random** (the same one for the whole run); an empty
   gallery means the default amber bird. Every upload is made the **same size**: transparent margins are

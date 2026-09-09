@@ -142,17 +142,8 @@
         margin-bottom: 1.2em;
         max-width: 18em;
       }
-      /* Admin-editable tagline under the title, and the "presented by" mark
+      /* Legacy rule kept for the "presented by" mark
          at the foot of the menu (see store.js / admin.html). */
-      #startScreen .menu-tagline {
-        font-size: 1em;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: #ffd166;
-        margin-top: -0.15em;
-        margin-bottom: 0.6em;
-        text-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
-      }
       #startScreen .menu-presented {
         margin-top: 1em;
         display: flex;
@@ -292,6 +283,83 @@
         font-size: 2.6em;
         text-shadow: 0 0 0.5em rgba(255, 179, 0, 0.8);
       }
+      /* ---------- DigiCon 2026 deck restyle (menu + HUD) ---------- */
+      /* Vertical budget: everything incl. the station QR panel must fit a 9:16
+         stage (~66em tall at the stage font-size); the bottom band is reserved
+         for the absolutely placed "Presented by" line. */
+      #startScreen { position: relative; padding: 1.2em 1.5em 3.8em; }
+      #startScreen .menu-logo { width: 56%; margin-bottom: 0.7em; }
+      /* Title is upright and wide in the deck; HOW TO PLAY stays italic amber. */
+      #startScreen .menu-title {
+        font-style: normal;
+        letter-spacing: 0.02em;
+        font-size: 3.1em;
+        line-height: 1;
+        margin-bottom: 0.35em;
+      }
+      #startScreen .menu-howto-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.7em;
+        margin-bottom: 0.35em;
+      }
+      #startScreen .menu-howto-row .menu-howto { margin-bottom: 0; }
+      #startScreen .menu-joystick {
+        width: 4.4em;
+        height: auto;
+        filter: drop-shadow(0 0.35em 0.7em rgba(0, 0, 0, 0.35));
+      }
+      #startScreen .menu-instr-wrap {
+        position: relative;
+        max-width: 19em;
+        margin-bottom: 1em;
+      }
+      #startScreen .menu-instr-wrap .menu-instr { margin-bottom: 0; max-width: none; }
+      #startScreen .menu-pad {
+        position: absolute;
+        right: -2.2em;
+        bottom: -1.7em;
+        width: 5.8em;
+        height: auto;
+        transform: rotate(-14deg);
+        filter: drop-shadow(0 0.35em 0.7em rgba(0, 0, 0, 0.35));
+        pointer-events: none;
+      }
+      #startBtn { box-shadow: 0 0.5em 1.4em rgba(0, 0, 0, 0.35); }
+      #startScreen .menu-wordmark {
+        width: 52%;
+        height: auto;
+        margin-top: 0.9em;
+      }
+      #startScreen .menu-presented {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 1.6%;
+        justify-content: center;
+        margin-top: 0;
+      }
+      /* Score: the deck's gold badge with the number inside - no label. */
+      #hud .hud-label { display: none; }
+      #scoreDisplay {
+        font-size: 2.1em;
+        font-style: normal;
+        width: 2.4em;
+        height: 2.4em;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 35% 30%, #ffe27a 0%, #ffb300 55%, #d98a00 100%);
+        -webkit-background-clip: padding-box;
+        background-clip: padding-box;
+        color: #6b2400;
+        -webkit-text-fill-color: #6b2400;
+        box-shadow: 0 0.25em 0.8em rgba(0, 0, 0, 0.35), inset 0 0 0 0.12em rgba(255, 255, 255, 0.55);
+        filter: none;
+      }
+      #hudPlayer { margin-top: 0.5em; }
     </style>
   </head>
 
@@ -333,14 +401,14 @@
             </div>
           </div>
 
-          <!-- Start Screen -->
+          <!-- Start Screen (DigiCon 2026 deck layout; art in assets/) -->
           <div
             id="startScreen"
             class="text-center pointer-events-none flex flex-col items-center justify-center w-full h-full"
           >
             <img
               id="menuLogo"
-              src="assets/plug-play-title.png"
+              src="assets/plug%20n%20play.png"
               alt="WP/Connect Plug and Play"
               class="menu-logo h-auto"
             />
@@ -351,20 +419,23 @@
             >
               WP FLAPPY CHALLENGE
             </h1>
-            <p id="menuTagline" class="menu-tagline title-font">
-              WP/CONNECT &times; DIGICON 2026
-            </p>
-            <h2
-              class="menu-howto title-font"
-              style="color: #ffb300; text-shadow: 0 0 12px rgba(255, 179, 0, 0.5)"
-            >
-              HOW TO PLAY
-            </h2>
-            <p id="menuInstr" class="menu-instr text-white font-extrabold leading-snug">
-              Tap or press the button to flap. Thread every gap and rack up
-              points &mdash; the higher you score, the higher you land on the
-              leaderboard.
-            </p>
+            <div class="menu-howto-row">
+              <img class="menu-joystick" src="assets/controller%202.png" alt="" draggable="false" />
+              <h2
+                class="menu-howto title-font"
+                style="color: #ffb300; text-shadow: 0 0 12px rgba(255, 179, 0, 0.5)"
+              >
+                HOW TO PLAY
+              </h2>
+            </div>
+            <div class="menu-instr-wrap">
+              <p id="menuInstr" class="menu-instr text-white font-extrabold leading-snug">
+                Tap or press the button to flap. Thread every gap and rack up
+                points &mdash; the higher you score, the higher you land on the
+                leaderboard.
+              </p>
+              <img class="menu-pad" src="assets/WPC%20Controller.png" alt="" draggable="false" />
+            </div>
             <div id="stationPanel" class="hidden">
               <div id="stationQr"></div>
               <div id="stationMsg"></div>
@@ -375,6 +446,12 @@
             >
               Start Game
             </button>
+            <img
+              class="menu-wordmark"
+              src="assets/wpc%20x%20digicon.png"
+              alt="WP/Connect x DigiConX"
+              draggable="false"
+            />
             <div class="menu-presented">
               <span>Presented by</span>
               <img id="menuMark" src="assets/wpg-logo.png" alt="" draggable="false" />
@@ -461,7 +538,6 @@
       const gameContainer = document.getElementById("game-container");
       const menuLogo = document.getElementById("menuLogo");
       const menuTitle = document.getElementById("menuTitle");
-      const menuTagline = document.getElementById("menuTagline");
       const menuMark = document.getElementById("menuMark");
       const menuInstr = document.getElementById("menuInstr");
       const endSub = document.getElementById("endSub");
@@ -726,6 +802,7 @@
           this.velocity = flapStrength;
           playSound("flap"); // Play jump sound!
           createParticles(this.x, this.y, 8);
+          spawnDash(3, true);
         },
       };
 
@@ -980,6 +1057,22 @@
           ctx.stroke();
         }
 
+        // Deck outline squiggle across the top - one hand-drawn white line.
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.lineWidth = Math.max(1.5, gameWidth * 0.004);
+        ctx.beginPath();
+        const step = gameWidth / 30;
+        for (let x = -step; x <= gameWidth + step; x += step) {
+          const t = x / gameWidth;
+          const y =
+            gameHeight * 0.075 +
+            Math.sin(t * 5.2 + 0.6) * gameHeight * 0.02 +
+            Math.sin(t * 13.1) * gameHeight * 0.008;
+          if (x === -step) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
         // Contrast wash so the tubes and bird stay readable.
         ctx.fillStyle = "rgba(18, 6, 10, 0.28)";
         ctx.fillRect(0, 0, gameWidth, gameHeight);
@@ -1019,6 +1112,7 @@
           bird.rotation = 0;
         }
 
+        drawAndUpdateDecor(deltaMultiplier);
         pipes.draw();
         drawAndUpdateParticles(deltaMultiplier);
         bird.draw();
@@ -1035,6 +1129,11 @@
         bird.rotation = 0;
         pipes.reset();
         particles = [];
+        decor = [];
+        nextDecorFrame = 0;
+        dash.length = 0;
+        dashDrip = 0;
+        dashClock = 0;
         score = 0;
         frames = 0;
         lastTime = 0;
@@ -1054,7 +1153,7 @@
       }
 
       /* ---------- Branding + bird skins (see store.js / admin.html) ----------
-         Title, tagline, logo and mark come from the admin page; the SKINS
+         Title, logo and mark come from the admin page; the SKINS
          gallery holds brand images and EACH RUN the bird wears one at random,
          the same one for the whole run. Browser-only IndexedDB, so the admin
          must be opened from the same origin as this page. */
@@ -1074,7 +1173,6 @@
         document.title =
           s.title + (TRIAL ? " \u2014 TRIAL (nothing saved)" : " \u2014 WP/Connect \u00d7 DigiCon 2026");
         menuTitle.textContent = s.title;
-        menuTagline.textContent = s.tagline;
         menuLogo.src = birdAssets.logo;
         menuMark.src = birdAssets.mark;
         // Admin-set keys: they flap, and they press Start / restart too. The
@@ -1118,9 +1216,16 @@
         currentSkin = (fixed || pool[Math.floor(Math.random() * pool.length)]).img;
       }
 
-      /** Draw the brand skin centred on the (already translated + rotated) bird. */
+      // The deck's own bird: the white WP gamepad sticker. A brand skin from
+      // the admin replaces it; the drawn amber bird is only the last resort
+      // while the sticker has not loaded.
+      const DEFAULT_BIRD = new Image();
+      DEFAULT_BIRD.decoding = "async";
+      DEFAULT_BIRD.src = "assets/WPC%20Controller.png";
+
+      /** Draw the sticker centred on the (already translated + rotated) bird. */
       function drawSkin(r) {
-        const img = currentSkin;
+        const img = currentSkin || DEFAULT_BIRD;
         if (!img || !img.complete || !img.naturalWidth) return false;
         // Drawn a little proud of the hit circle so a logo reads on the TV;
         // the collision radius is unchanged, so skins never make it harder.
@@ -1128,11 +1233,147 @@
         const ratio = img.naturalWidth / img.naturalHeight;
         const w = ratio >= 1 ? box : box * ratio;
         const h = ratio >= 1 ? box / ratio : box;
-        ctx.shadowBlur = 16;
-        ctx.shadowColor = "rgba(255, 179, 0, 0.75)";
+
+        // Dash trail: animated speed streaks behind the sticker (drawn first,
+        // so they sit behind it). Runs in every state so leftover streaks fade
+        // out after a crash instead of freezing.
+        drawDash(r, -w / 2 - r * 0.3);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+        ctx.shadowBlur = r * 0.6;
+        ctx.shadowOffsetY = r * 0.25;
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
         ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
         return true;
+      }
+
+      /* ---------- Dash trail ----------
+         Speed streaks spawn at the sticker's tail - a burst on every flap and
+         a trickle in between while flying - then slide back, thin out and fade.
+         Bird-local coordinates, so they tilt with the bird like the mockup. */
+      const dash = [];
+      let dashClock = 0; // performance.now() at the last draw: frame-rate independent
+      let dashDrip = 0;  // frames until the next trickle streak
+
+      function spawnDash(n, burst) {
+        for (let i = 0; i < n; i++) {
+          dash.push({
+            y: (Math.random() - 0.5) * 1.3,                      // lane behind the tail (x radius)
+            x: Math.random() * 0.4,                              // start just off the tail (x radius)
+            len: (burst ? 1.4 : 0.9) + Math.random() * 0.9,      // x radius
+            speed: (burst ? 0.22 : 0.14) + Math.random() * 0.1,  // radius per frame, backwards
+            life: 1,
+            decay: 0.045 + Math.random() * 0.03,
+          });
+        }
+      }
+
+      function drawDash(r, tail) {
+        const now = performance.now();
+        const dt = dashClock ? Math.min(3, (now - dashClock) / 16.667) : 1;
+        dashClock = now;
+        if (currentState === "PLAYING") {
+          dashDrip -= dt;
+          if (dashDrip <= 0) {
+            spawnDash(1, false);
+            dashDrip = 4 + Math.random() * 4;
+          }
+        }
+        ctx.lineCap = "round";
+        for (let i = dash.length - 1; i >= 0; i--) {
+          const s = dash[i];
+          s.x += s.speed * r * dt;
+          s.life -= s.decay * dt;
+          if (s.life <= 0) {
+            dash.splice(i, 1);
+            continue;
+          }
+          const a = s.life * s.life; // ease out
+          ctx.strokeStyle = "rgba(255, 255, 255, " + (0.9 * a).toFixed(3) + ")";
+          ctx.lineWidth = Math.max(1.5, r * 0.15 * (0.4 + 0.6 * s.life));
+          const x0 = tail - s.x;
+          const len = s.len * r * (0.5 + 0.5 * s.life);
+          ctx.beginPath();
+          ctx.moveTo(x0, s.y * r);
+          ctx.lineTo(x0 - len, s.y * r);
+          ctx.stroke();
+        }
+      }
+
+      /* ---------- Drifting deck stickers (behind the tubes) ----------
+         X marks, pixel cubes, sparkles and small controllers float past at a
+         fraction of the tube speed - parallax without competing with play. */
+      const DECOR_SPECS = [
+        { src: "assets/elements_Cross%20White.png", w: 0.055, weight: 3 },
+        { src: "assets/elements_Cross%20Red.png", w: 0.05, weight: 2 },
+        { src: "assets/elements_Cross%20Cubes.png", w: 0.06, weight: 2 },
+        { src: "assets/elements_Cross%20Cubes%20copy.png", w: 0.06, weight: 2 },
+        { src: "assets/elements_Controller%202.png", w: 0.11, weight: 2 },
+        { src: "assets/controller%202.png", w: 0.12, weight: 1 },
+        { src: "assets/WPC%20Controller.png", w: 0.13, weight: 1 },
+      ];
+      DECOR_SPECS.forEach((d) => {
+        d.img = new Image();
+        d.img.decoding = "async";
+        d.img.src = d.src;
+      });
+      const DECOR_WEIGHT = DECOR_SPECS.reduce((n, d) => n + d.weight, 0);
+      let decor = [];
+      let nextDecorFrame = 0;
+
+      function pickDecorSpec() {
+        let r = Math.random() * DECOR_WEIGHT;
+        for (const d of DECOR_SPECS) {
+          r -= d.weight;
+          if (r <= 0) return d;
+        }
+        return DECOR_SPECS[0];
+      }
+
+      function spawnDecor() {
+        const spec = pickDecorSpec();
+        const w = gameWidth * spec.w;
+        decor.push({
+          spec,
+          w,
+          x: gameWidth + w,
+          y: gameHeight * (0.08 + Math.random() * 0.8),
+          speed: 0.25 + Math.random() * 0.25, // fraction of the tube speed
+          bob: Math.random() * Math.PI * 2,
+          bobAmp: gameHeight * 0.006,
+          rot: (Math.random() - 0.5) * 0.6,
+          spin: (Math.random() - 0.5) * 0.004,
+          alpha: 0.85,
+        });
+      }
+
+      function drawAndUpdateDecor(deltaMultiplier) {
+        if (currentState === "PLAYING" && frames >= nextDecorFrame) {
+          spawnDecor();
+          nextDecorFrame = frames + 70 + Math.random() * 80;
+        }
+        for (let i = decor.length - 1; i >= 0; i--) {
+          const d = decor[i];
+          if (currentState === "PLAYING") {
+            d.x -= pipeSpeed * d.speed * deltaMultiplier;
+            d.bob += 0.03 * deltaMultiplier;
+            d.rot += d.spin * deltaMultiplier;
+          }
+          if (d.x < -d.w) {
+            decor.splice(i, 1);
+            continue;
+          }
+          const img = d.spec.img;
+          if (!img.complete || !img.naturalWidth) continue;
+          const h = d.w * (img.naturalHeight / img.naturalWidth);
+          ctx.save();
+          ctx.globalAlpha = d.alpha;
+          ctx.translate(d.x, d.y + Math.sin(d.bob) * d.bobAmp);
+          ctx.rotate(d.rot);
+          ctx.drawImage(img, -d.w / 2, -h / 2, d.w, h);
+          ctx.restore();
+        }
       }
 
       /* ---------- CCE Play station ----------
@@ -1500,6 +1741,8 @@
           drawBird: () => bird.draw(),
           keys: () => flapKeys,
           mode: () => skinMode,
+          dash: () => dash.length,
+          setState: (s) => { currentState = s; },
           trial: TRIAL,
           birdPos: () => ({ x: bird.x, y: bird.y, r: bird.radius }),
         };

@@ -383,11 +383,6 @@
         <input id="titleInput" maxlength="40" autocomplete="off">
         <span class="count" id="titleCount"></span>
       </label>
-      <label class="field">
-        Tagline
-        <input id="taglineInput" maxlength="80" autocomplete="off">
-        <span class="count" id="taglineCount"></span>
-      </label>
     </div>
   </section>
 
@@ -432,7 +427,7 @@
       <li>To set up another device: <strong>Export</strong> here, copy the file over, then <strong>Import</strong> it in the admin on that device.</li>
       <li>Images are resized to a maximum of <code>512px</code> and stored as WebP (PNG where WebP is unavailable), keeping transparency.</li>
       <li>The skin is picked <strong>when a run starts</strong>; a run already in progress keeps its bird. Gaps in the gallery are fine - only filled slots are used.</li>
-      <li><strong>Reset to defaults</strong> deletes every uploaded image and the custom title and tagline.</li>
+      <li><strong>Reset to defaults</strong> deletes every uploaded image, the custom title, the flap keys and the bird choice.</li>
     </ul>
   </section>
 </div>
@@ -482,9 +477,7 @@ const saveBar = $('saveBar');
 const statusLine = $('statusLine');
 const storageBanner = $('storageBanner');
 const titleInput = $('titleInput');
-const taglineInput = $('taglineInput');
 const titleCount = $('titleCount');
-const taglineCount = $('taglineCount');
 const skinTiles = $('skinTiles');
 const skinNote = $('skinNote');
 const refitRow = $('refitRow');
@@ -508,7 +501,7 @@ const importInput = $('importInput');
 const toastEl = $('toast');
 
 /* ---------- draft model ---------- */
-let draft = null;             // { settings:{title,tagline}, images: Map<id,{blob,url,width,height,type}> }
+let draft = null;             // { settings:{title,flapKeys,skinMode}, images: Map<id,{blob,url,width,height,type}> }
 let existingIds = new Set();  // slot ids currently stored in IndexedDB
 let imageOps = new Map();     // slot id -> {blob,width,height} (put) | null (delete), pending since last save
 let baselineSettings = '';
@@ -526,7 +519,6 @@ function isDirty() {
 function settingsOf(s) {
   return {
     title: s.title,
-    tagline: s.tagline,
     flapKeys: (s.flapKeys || []).map((k) => ({ code: k.code, key: k.key, label: k.label })),
     skinMode: s.skinMode || 'random'
   };
@@ -614,13 +606,11 @@ function renderStatus() {
 
 function renderSettings() {
   titleInput.value = draft.settings.title;
-  taglineInput.value = draft.settings.tagline;
   renderCounts();
 }
 
 function renderCounts() {
   titleCount.textContent = titleInput.value.length + ' / ' + LIMITS.TITLE_MAX;
-  taglineCount.textContent = taglineInput.value.length + ' / ' + LIMITS.TAGLINE_MAX;
 }
 
 function badgeFor(id) {
@@ -1048,7 +1038,6 @@ gateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(
 lockBtn.addEventListener('click', relock);
 
 titleInput.addEventListener('input', () => { draft.settings.title = titleInput.value; renderCounts(); updateDirtyUI(); });
-taglineInput.addEventListener('input', () => { draft.settings.tagline = taglineInput.value; renderCounts(); updateDirtyUI(); });
 
 fileInput.addEventListener('change', () => {
   const file = fileInput.files && fileInput.files[0];
