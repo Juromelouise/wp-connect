@@ -125,11 +125,13 @@ that key** — re-enter the new one there if it is deployed.
 
 ## Free play (no QR)
 
-`wp-bird/trial.html` opens WP Flappy Challenge in **free play**: no QR, no station key, and nothing is
-posted to CCE Play - the run is simply dropped. It is the same game file (`index.html?trial=1`) with
-the network script swapped for a stub, so skins, flap keys and branding from `admin.html` all apply.
-Use it to try a config or to let people play for fun; the leaderboard only takes runs from the real
-station screen.
+`flip-match/trial.html` and `wp-bird/trial.html` open each game in **free play**: no QR, no station
+key, and nothing is posted to CCE Play - the run is simply dropped (the HUD chip says FREE PLAY and the
+result screen says TRIAL RUN - NOT SAVED). It is the same game file (`index.html?trial=1`) with the
+network script swapped for a stub (`station-trial.js`), so card sets, board size, skins, flap keys and
+branding from each `admin.html` all apply. Use it to try a config or to let people play for fun; the
+leaderboard only takes runs from the real station screen. Flip Match's other switches pass through
+(`trial.html?input=touch` for a touch-only trial, `?input=mouse` to drive the hand cursor with a mouse).
 
 ## Local testing
 

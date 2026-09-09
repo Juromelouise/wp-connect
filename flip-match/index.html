@@ -60,7 +60,8 @@
       radial-gradient(55% 40% at 100% 0%, rgba(28, 31, 214, 0.85) 0%, rgba(28, 31, 214, 0) 70%),
       radial-gradient(42% 30% at 0% 100%, rgba(40, 20, 210, 0.85) 0%, rgba(40, 20, 210, 0) 70%),
       radial-gradient(50% 32% at 100% 100%, rgba(255, 179, 0, 0.95) 0%, rgba(255, 179, 0, 0) 65%),
-      radial-gradient(30% 22% at 0% 0%, rgba(255, 140, 0, 0.6) 0%, rgba(255, 140, 0, 0) 70%),
+      radial-gradient(30% 22% at 0% 0%, rgba(255, 140, 0, 0.3) 0%, rgba(255, 140, 0, 0) 70%),
+      radial-gradient(70% 26% at 50% 100%, rgba(70, 0, 0, 0.55) 0%, rgba(70, 0, 0, 0) 70%),
       linear-gradient(165deg, var(--red-bright) 0%, #d40009 40%, var(--red-deep) 100%);
   }
 
@@ -98,7 +99,7 @@
     padding: 0 1.4em;
     display: flex;
     align-items: center;
-    gap: 1em;
+    gap: 0.8em;
   }
   #hudMark {
     height: 2.5em;
@@ -119,12 +120,18 @@
     text-overflow: ellipsis;
     text-shadow: 0 0.08em 0.4em rgba(0, 0, 0, 0.35);
   }
+  /* beside a player / FREE PLAY chip the title steps down instead of truncating */
+  #hudPlayer:not(.hidden) + #hudTitle { font-size: 1.15em; }
   .hud-stats {
     display: flex;
     gap: 1.6em;
-    background: rgba(11, 11, 11, 0.62);
-    border-radius: 0.6em;
-    padding: 0.35em 1em;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.7em;
+    padding: 0.4em 1.1em;
+    box-shadow: 0 0.3em 0.9em rgba(60, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
   .stat { text-align: center; }
   .stat-label {
@@ -204,9 +211,9 @@
   .face .clip {
     width: 100%;
     height: 100%;
-    border-radius: 9%;
+    border-radius: 11%;
     overflow: hidden;
-    box-shadow: 0 0.3em 0.9em rgba(60, 0, 0, 0.5);
+    box-shadow: 0 0.4em 1em rgba(60, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -287,6 +294,10 @@
     animation: introPulse 0.9s ease-in-out infinite;
   }
   @keyframes introPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  /* the left spacer only balances the camera preview; without a preview the
+     intro label gets that room instead of truncating ("GO! FIND T…") */
+  .footer-side.spacer { display: none; }
+  #stage.has-pip .footer-side.spacer { display: block; }
   #camBadge {
     display: flex;
     align-items: center;
@@ -298,9 +309,10 @@
     text-transform: uppercase;
     color: var(--dim);
     white-space: nowrap;
-    background: rgba(11, 11, 11, 0.62);
-    border-radius: 0.6em;
-    padding: 0.55em 0.9em;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    padding: 0.55em 1em;
     width: auto;
     min-width: 8.4em;
     justify-self: end;
@@ -410,19 +422,25 @@
   }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+  /* PLUG & PLAY hero: the art carries the deck's white outline waves, which
+     run edge to edge on the artboard, so it is sized past the screen padding */
   .screen-logo {
-    width: 92%;
-    max-height: 28%;
+    width: calc(100% + 4em);
+    max-width: none;
+    max-height: 30%;
     object-fit: contain;
+    flex: none;
     filter: drop-shadow(0 0.4em 1em rgba(60, 0, 0, 0.45));
-    margin-bottom: 0.6em;
+    margin-bottom: 0.1em;
   }
+  /* deck wordmark: upright, wide-tracked black caps */
   .screen-title {
     font-weight: 900;
-    font-style: italic;
-    font-size: 3.4em;
-    line-height: 0.95;
-    letter-spacing: 0.01em;
+    font-style: normal;
+    font-size: 3.6em;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-indent: 0.06em;
     text-transform: uppercase;
     color: #fff;
     text-shadow: 0 0.06em 0.5em rgba(60, 0, 0, 0.45);
@@ -441,7 +459,7 @@
     overflow-wrap: anywhere;
   }
   .cta {
-    margin-top: 2em;
+    margin-top: 1.6em;
     font-family: inherit;
     font-weight: 900;
     font-style: italic;
@@ -477,6 +495,20 @@
     color: var(--dim);
     max-width: 90%;
     line-height: 1.6;
+  }
+  #startHint {
+    margin-top: 1.3em;
+    font-size: 0.72em;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 0.1em 0.5em rgba(60, 0, 0, 0.5);
+  }
+  /* WP/CONNECT x DigiConX lock-up under the hint (deck start screen) */
+  .start-wordmark {
+    width: 58%;
+    height: auto;
+    margin-top: 1.9em;
+    filter: drop-shadow(0 0.15em 0.5em rgba(60, 0, 0, 0.45));
   }
   #startScreen { cursor: pointer; }
   .presented {
@@ -570,7 +602,7 @@
     background: rgba(0, 0, 0, 0.42);
     border: 1px solid rgba(255, 255, 255, 0.28);
     font-weight: 900;
-    font-size: 0.78em;
+    font-size: 0.72em;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #fff;
@@ -657,7 +689,7 @@
   </div>
 
   <div id="footer">
-    <div class="footer-side"></div>
+    <div class="footer-side spacer"></div>
     <div id="tagline"></div>
     <div id="camBadge" class="footer-side loading">LOADING…</div>
   </div>
@@ -687,6 +719,7 @@
     </div>
     <button id="startBtn" class="cta" type="button">START</button>
     <div id="startHint" class="screen-hint"></div>
+    <img class="start-wordmark" src="assets/wpc%20x%20digicon.png" alt="WP/Connect x DigiConX" draggable="false">
     <div class="presented"><span id="presentedLabel">PRESENTED BY</span><img id="startMark" alt="" draggable="false"></div>
   </div>
 
@@ -713,7 +746,15 @@
   <canvas id="confetti"></canvas>
 </div>
 
-<script src="station.js"></script>
+<script>
+  // ?trial=1 (what trial.html opens): free play with no QR and no server.
+  // The network station script is swapped for a stub that never posts.
+  document.write(
+    '<script src="' +
+      (new URLSearchParams(location.search).has('trial') ? 'station-trial.js' : 'station.js') +
+      '"><' + '/script>'
+  );
+</script>
 <script src="store.js"></script>
 <script>
 (function () {
@@ -787,11 +828,11 @@ const BACKDROP_SVG =
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1920' preserveAspectRatio='xMidYMid slice'>" +
   "<path d='M0 0H780C660 160 430 220 300 340S70 480 0 540Z' fill='#8a0000' opacity='.5'/>" +
   "<path d='M0 1560C260 1440 420 1720 700 1640S980 1500 1080 1560V1920H0Z' fill='#7a0000' opacity='.55'/>" +
-  "<path d='M-40 640C160 590 260 760 520 700S840 560 1120 660' fill='none' stroke='#fff' stroke-opacity='.32' stroke-width='3'/>" +
-  "<path d='M-40 1380C200 1320 330 1490 600 1420S900 1300 1120 1380' fill='none' stroke='#fff' stroke-opacity='.22' stroke-width='3'/>" +
+  "<path d='M540 660C660 640 740 500 880 450S1020 400 1120 380' fill='none' stroke='#fff' stroke-opacity='.3' stroke-width='3'/>" +
+  "<path d='M-40 1620C200 1560 330 1700 600 1640S900 1520 1120 1600' fill='none' stroke='#fff' stroke-opacity='.24' stroke-width='3'/>" +
   "<circle cx='1010' cy='1720' r='190' fill='none' stroke='#fff' stroke-opacity='.35' stroke-width='3'/>" +
   "<circle cx='1010' cy='1720' r='115' fill='none' stroke='#fff' stroke-opacity='.25' stroke-width='2'/>" +
-  "<circle cx='50' cy='250' r='170' fill='none' stroke='#fff' stroke-opacity='.3' stroke-width='3'/>" +
+  "<circle cx='-30' cy='760' r='210' fill='none' stroke='#fff' stroke-opacity='.28' stroke-width='3'/>" +
   "<g fill='#fff' fill-opacity='.75'>" +
   "<circle cx='150' cy='600' r='4'/><circle cx='168' cy='600' r='4'/><circle cx='186' cy='600' r='4'/>" +
   "<circle cx='150' cy='618' r='4'/><circle cx='168' cy='618' r='4'/><circle cx='186' cy='618' r='4'/>" +
@@ -805,6 +846,8 @@ const QS = new URLSearchParams(location.search);
 const INPUT_MODE = QS.get('input') === 'mouse' ? 'mouse' : (QS.get('input') === 'touch' ? 'touch' : 'camera');
 if (QS.get('dwell')) HAND.DWELL_MS = Math.max(200, Number(QS.get('dwell')) || HAND.DWELL_MS);
 if (QS.get('near')) HAND.MIN_SIZE = Number(QS.get('near')) || HAND.MIN_SIZE;
+// Free play (trial.html): no QR, no key, nothing saved. See station-trial.js.
+const TRIAL = QS.has('trial');
 
 /* ---------- dom ---------- */
 const $ = (id) => document.getElementById(id);
@@ -913,10 +956,13 @@ function applyConfig(cfg) {
   config = cfg;
   assets = FlipStore.resolveAssets(cfg);
   const s = cfg.settings;
-  document.title = s.title;
+  document.title = TRIAL ? s.title + ' \u2014 TRIAL (nothing saved)' : s.title;
   hudTitle.textContent = s.title;
   startTitle.textContent = s.title;
   startTagline.textContent = s.tagline;
+  // the start screen carries the WP/CONNECT x DigiConX lock-up art, so the
+  // text tagline only shows there when staff changed it to something else
+  startTagline.classList.toggle('hidden', s.tagline === FlipStore.DEFAULTS.tagline);
   if (!taglineEl.classList.contains('is-intro')) taglineEl.textContent = s.tagline;
   hudMark.src = assets.mark;
   startMark.src = assets.mark;
@@ -974,7 +1020,7 @@ function layoutBoard() {
   const H = board.clientHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
   if (W <= 0 || H <= 0) return;
   // tighter gutters on dense boards so the cards keep their size
-  const gap = Math.round(fs * (cols >= 7 ? 0.3 : cols >= 5 ? 0.4 : 0.5));
+  const gap = Math.round(fs * (cols >= 7 ? 0.3 : cols >= 5 ? 0.45 : 0.8));
   const size = Math.max(24, Math.floor(Math.min(
     (W - gap * (cols - 1)) / cols,
     (H - gap * (rows - 1)) / rows
@@ -1144,7 +1190,8 @@ let stationSnapshot = { phase: 'idle' };
 let stationQrUrl = '';
 
 function stationCanPlay() {
-  return stationSnapshot.phase === 'claimed' || stationSnapshot.phase === 'error';
+  return stationSnapshot.phase === 'claimed' || stationSnapshot.phase === 'error' ||
+    stationSnapshot.phase === 'trial';
 }
 
 function stationCopy(s) {
@@ -1159,6 +1206,7 @@ function stationCopy(s) {
     case 'done':       return 'SAVED! CHECK THE LEADERBOARD ON CCE PLAY';
     case 'error':      return 'OFFLINE — YOU CAN STILL PLAY, BUT SCORES WON\u2019T BE SAVED';
     case 'closed':     return 'ARCADE CLOSED\n' + (s.error || 'Come back when the gaming block opens');
+    case 'trial':      return 'FREE PLAY \u2014 NOTHING IS SAVED\nTap START to play';
     default:           return '';
   }
 }
@@ -1170,6 +1218,9 @@ function renderStation(s) {
   const named = s.phase === 'claimed' || s.phase === 'submitting' || s.phase === 'done';
   if (named && s.player && s.player.username) {
     hudPlayerName.textContent = s.player.username;
+    hudPlayer.classList.remove('hidden');
+  } else if (s.phase === 'trial') {
+    hudPlayerName.textContent = 'FREE PLAY';
     hudPlayer.classList.remove('hidden');
   } else {
     hudPlayer.classList.add('hidden');
@@ -1197,6 +1248,7 @@ function renderStation(s) {
     s.phase === 'submitting' ? 'SAVING YOUR RUN…'
     : s.phase === 'done' ? 'SAVED TO THE LEADERBOARD'
     : s.phase === 'error' && s.error ? s.error
+    : s.phase === 'trial' ? 'TRIAL RUN \u2014 NOT SAVED'
     : '';
   stationSave.classList.toggle('is-bad', s.phase === 'error');
 }
@@ -1459,6 +1511,7 @@ async function initHands() {
     await camVideo.play();
     camReady = true;
     show(camPip);
+    stage.classList.add('has-pip');
     sizePip();
     setCamStatus('on', COPY.cam.on);
   } catch (e) {
@@ -1468,6 +1521,7 @@ async function initHands() {
       : (name === 'NotFoundError' || name === 'OverconstrainedError' ? COPY.cam.none : COPY.cam.off);
     setCamStatus('off', label, String((e && e.message) || e));
     hide(camPip);
+    stage.classList.remove('has-pip');
   }
 }
 
@@ -1510,7 +1564,7 @@ if (INPUT_MODE === 'mouse') {
     hand.lastSeen = performance.now();
   });
   // test hook: lets an automated check step the cursor loop when the tab is hidden
-  window.FlipMatchDebug = { tick: (now) => updateCursor(now), hand: hand, dwell: dwell };
+  window.FlipMatchDebug = { tick: (now) => updateCursor(now), hand: hand, dwell: dwell, trial: TRIAL };
 }
 
 function mapToStage() {

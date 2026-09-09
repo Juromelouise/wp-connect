@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Match - Trial (free play)</title>
+<!--
+  Free play: no QR, no station key, nothing is posted to CCE Play.
+  This is the SAME game as index.html, opened with ?trial=1, which swaps
+  station.js for station-trial.js (a stub that never touches the network).
+  Any other params you add here (?debug, ?input=mouse, ?input=touch) pass through.
+-->
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    q.set('trial', '1');
+    location.replace('index.html?' + q.toString() + location.hash);
+  })();
+</script>
+</head>
+<body style="margin: 0; background: #7a0000; color: #fff; font-family: Montserrat, Arial, sans-serif; padding: 2rem">
+  <p>
+    Opening the free-play trial&hellip;
+    <a href="index.html?trial=1" style="color: #ffb300">Click here if nothing happens.</a>
+  </p>
+</body>
+</html>

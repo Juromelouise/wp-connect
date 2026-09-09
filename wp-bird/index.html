@@ -234,12 +234,13 @@
       }
 
       #stationPanel {
-        margin-top: 1.1em;
+        /* Top margin clears the gamepad sticker's low-left corner (rotated). */
+        margin-top: 1.8em;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 0.8em;
-        max-width: 20em;
+        max-width: 22em;
       }
       #stationQr {
         width: 10em;
@@ -287,51 +288,88 @@
       /* Vertical budget: everything incl. the station QR panel must fit a 9:16
          stage (~66em tall at the stage font-size); the bottom band is reserved
          for the absolutely placed "Presented by" line. */
-      #startScreen { position: relative; padding: 1.2em 1.5em 3.8em; }
+      /* No side padding: the lock-up below is sized in % of this box, and it
+         must equal the stage width in BOTH menu modes (see .has-qr). */
+      #startScreen { position: relative; padding: 0 0 3.8em; }
+      /* The PLUG & PLAY lock-up is full-bleed art: its two hand-drawn squiggles
+         must run off the left edge and the top-right corner (deck), so the PNG
+         is laid WIDER than the stage (the container clips it) and nudged left
+         so the bold mark - centred at 54.2% of the PNG - sits on the stage
+         axis. An admin-uploaded logo has no squiggles: plain sizing. */
       #startScreen .menu-logo { width: 56%; margin-bottom: 0.7em; }
+      #startScreen .menu-logo.is-lockup {
+        width: 116%; /* of the stage - a % ignores the .has-qr em scale */
+        max-width: none;
+        margin-bottom: 0.3em;
+        transform: translateX(-4.2%);
+      }
       /* Title is upright and wide in the deck; HOW TO PLAY stays italic amber. */
       #startScreen .menu-title {
         font-style: normal;
-        letter-spacing: 0.02em;
-        font-size: 3.1em;
-        line-height: 1;
-        margin-bottom: 0.35em;
+        letter-spacing: 0.01em;
+        font-size: 4.1em;
+        line-height: 0.98;
+        margin-bottom: 0.2em;
       }
+      /* HOW TO PLAY stays on the stage axis; the joystick hangs off its left
+         (deck) instead of the pair being centred as one unit. */
       #startScreen .menu-howto-row {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.7em;
-        margin-bottom: 0.35em;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: end;
+        width: 100%;
+        margin-bottom: 0.3em;
       }
-      #startScreen .menu-howto-row .menu-howto { margin-bottom: 0; }
+      #startScreen .menu-howto-row .menu-howto { margin-bottom: 0; font-size: 2.3em; }
       #startScreen .menu-joystick {
-        width: 4.4em;
+        justify-self: end;
+        width: 6.4em;
         height: auto;
+        margin-right: 0.5em;
+        margin-bottom: -0.2em;
         filter: drop-shadow(0 0.35em 0.7em rgba(0, 0, 0, 0.35));
       }
       #startScreen .menu-instr-wrap {
         position: relative;
         max-width: 19em;
-        margin-bottom: 1em;
+        margin-bottom: 1.1em;
       }
-      #startScreen .menu-instr-wrap .menu-instr { margin-bottom: 0; max-width: none; }
+      #startScreen .menu-instr-wrap .menu-instr {
+        margin-bottom: 0;
+        max-width: none;
+        font-size: 1.2em;
+        line-height: 1.25;
+      }
+      /* Gamepad sticker sits to the RIGHT of the copy, straddling its bottom
+         edge (deck) - it must never cover a line of text. */
       #startScreen .menu-pad {
         position: absolute;
-        right: -2.2em;
-        bottom: -1.7em;
-        width: 5.8em;
+        left: 100%;
+        margin-left: -0.4em;
+        bottom: -1.5em;
+        width: 6.4em;
         height: auto;
         transform: rotate(-14deg);
         filter: drop-shadow(0 0.35em 0.7em rgba(0, 0, 0, 0.35));
         pointer-events: none;
       }
-      #startBtn { box-shadow: 0 0.5em 1.4em rgba(0, 0, 0, 0.35); }
-      #startScreen .menu-wordmark {
-        width: 52%;
-        height: auto;
-        margin-top: 0.9em;
+      #startBtn {
+        font-size: 2.05em;
+        padding: 0.5em 1.6em;
+        width: 77%;
+        box-shadow: 0 0.5em 1.4em rgba(0, 0, 0, 0.35);
       }
+      #startScreen .menu-wordmark {
+        width: 53%;
+        height: auto;
+        margin-top: 1em;
+      }
+      /* With the station QR on screen there is ~17em more to fit: scale the
+         whole menu down (everything is in em) but keep the QR itself big.
+         The lock-up is exempt (% width) - shrinking it cuts its squiggles. */
+      #startScreen.has-qr { font-size: 0.8em; }
+      #startScreen.has-qr #stationQr { width: 12em; }
+      #startScreen.has-qr #stationPanel { max-width: 28em; } /* copy lines stop orphaning */
       #startScreen .menu-presented {
         position: absolute;
         left: 0;
@@ -1058,20 +1096,23 @@
         }
 
         // Deck outline squiggle across the top - one hand-drawn white line.
-        ctx.strokeStyle = "rgba(255,255,255,0.55)";
-        ctx.lineWidth = Math.max(1.5, gameWidth * 0.004);
-        ctx.beginPath();
-        const step = gameWidth / 30;
-        for (let x = -step; x <= gameWidth + step; x += step) {
-          const t = x / gameWidth;
-          const y =
-            gameHeight * 0.075 +
-            Math.sin(t * 5.2 + 0.6) * gameHeight * 0.02 +
-            Math.sin(t * 13.1) * gameHeight * 0.008;
-          if (x === -step) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+        // Gameplay only: on the menu the PLUG & PLAY lock-up brings its own.
+        if (currentState !== "START") {
+          ctx.strokeStyle = "rgba(255,255,255,0.55)";
+          ctx.lineWidth = Math.max(1.5, gameWidth * 0.004);
+          ctx.beginPath();
+          const step = gameWidth / 30;
+          for (let x = -step; x <= gameWidth + step; x += step) {
+            const t = x / gameWidth;
+            const y =
+              gameHeight * 0.075 +
+              Math.sin(t * 5.2 + 0.6) * gameHeight * 0.02 +
+              Math.sin(t * 13.1) * gameHeight * 0.008;
+            if (x === -step) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
 
         // Contrast wash so the tubes and bird stay readable.
         ctx.fillStyle = "rgba(18, 6, 10, 0.28)";
@@ -1174,6 +1215,8 @@
           s.title + (TRIAL ? " \u2014 TRIAL (nothing saved)" : " \u2014 WP/Connect \u00d7 DigiCon 2026");
         menuTitle.textContent = s.title;
         menuLogo.src = birdAssets.logo;
+        // Only the shipped lock-up carries the edge-to-edge squiggles.
+        menuLogo.classList.toggle("is-lockup", birdAssets.logo === BirdStore.placeholders.logo());
         menuMark.src = birdAssets.mark;
         // Admin-set keys: they flap, and they press Start / restart too. The
         // menu never names them - the booth has one arcade button.
@@ -1428,7 +1471,7 @@
           case "closed":
             return "ARCADE CLOSED\n" + (st.error || "Come back when the gaming block opens");
           case "trial":
-            return "FREE PLAY \u2014 NO QR, NOTHING IS SAVED\nPress START or the button to play";
+            return "FREE PLAY \u2014 NOTHING IS SAVED\nPress START or the button to play";
           default:
             return "";
         }
@@ -1462,6 +1505,7 @@
           stationQr.innerHTML = "";
         }
         stationQr.classList.toggle("hidden", !showQr);
+        startScreen.classList.toggle("has-qr", showQr);
         stationMsg.textContent = stationCopy(st);
         stationMsg.classList.toggle("is-warn", st.phase === "error" || st.phase === "closed");
         stationPanel.classList.remove("hidden");
@@ -1743,6 +1787,9 @@
           mode: () => skinMode,
           dash: () => dash.length,
           setState: (s) => { currentState = s; },
+          // Preview any station phase without a backend, e.g.
+          // WPBirdDebug.station({ phase: "pending", claimUrl: "https://..." })
+          station: (st) => renderStation(st),
           trial: TRIAL,
           birdPos: () => ({ x: bird.x, y: bird.y, r: bird.radius }),
         };
