@@ -1059,7 +1059,8 @@
          the same one for the whole run. Browser-only IndexedDB, so the admin
          must be opened from the same origin as this page. */
       let birdAssets = null;   // { skins:[url], logo, mark, revoke }
-      let skinImages = [];     // decoded <img> per gallery skin
+      let skinImages = [];     // [{ id, img }] per gallery skin
+      let skinMode = "random"; // admin choice: 'random' or one slot id
       let currentSkin = null;  // the <img> this run wears (null = drawn bird)
       let birdSignature = "";
 
@@ -1081,11 +1082,12 @@
         flapKeys = s.flapKeys;
         menuInstr.textContent =
           "Tap or press the button to flap. Thread every gap and rack up points \u2014 the higher you score, the higher you land on the leaderboard.";
-        skinImages = birdAssets.skins.map((url) => {
+        skinMode = s.skinMode;
+        skinImages = birdAssets.skins.map(({ id, url }) => {
           const img = new Image();
           img.decoding = "async";
           img.src = url;
-          return img;
+          return { id, img };
         });
         // A run in progress keeps its bird; the next run draws from the new gallery.
         if (currentState === "START") currentSkin = null;
@@ -1102,8 +1104,18 @@
 
       /** Random per run - called as a run starts. Empty gallery = drawn bird. */
       function pickSkin() {
-        const ready = skinImages.filter((img) => img.complete && img.naturalWidth > 0);
-        currentSkin = ready.length ? ready[Math.floor(Math.random() * ready.length)] : null;
+        // Prefer decoded images; right after a config reload none may be yet,
+        // so fall back to the whole gallery - drawSkin() paints the brand the
+        // moment it finishes loading instead of leaving the default bird on.
+        const ready = skinImages.filter((s) => s.img.complete && s.img.naturalWidth > 0);
+        const pool = ready.length ? ready : skinImages;
+        if (!pool.length) {
+          currentSkin = null;
+          return;
+        }
+        // Admin choice: one fixed brand (if it still exists), else random.
+        const fixed = skinMode !== "random" ? pool.find((s) => s.id === skinMode) : null;
+        currentSkin = (fixed || pool[Math.floor(Math.random() * pool.length)]).img;
       }
 
       /** Draw the brand skin centred on the (already translated + rotated) bird. */
@@ -1487,6 +1499,7 @@
           // Hidden-pane tests: draw the bird on the current frame and say where it is.
           drawBird: () => bird.draw(),
           keys: () => flapKeys,
+          mode: () => skinMode,
           trial: TRIAL,
           birdPos: () => ({ x: bird.x, y: bird.y, r: bird.radius }),
         };

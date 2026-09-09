@@ -405,6 +405,11 @@
   <section class="panel">
     <h2>Bird skins</h2>
     <p class="hint">One image per brand. <strong>Every run the bird wears one of these at random</strong> and keeps it for the whole run; leave the gallery empty for the default bird. <strong>Every upload is made the same size:</strong> transparent margins are trimmed and the logo is fitted into a 512 &times; 512 square with even padding, so a wordmark with whitespace around it lands on the bird exactly as big as a tight square badge. Transparent PNGs look best. Click a tile or drop an image onto it.</p>
+    <label class="field" style="max-width: 24rem; margin-bottom: 1rem;">
+      Bird wears
+      <select id="skinModeSelect"></select>
+      <span class="count" id="skinModeNote"></span>
+    </label>
     <div id="skinTiles" class="tiles"></div>
     <p id="skinNote" class="hint" style="margin: 0.9rem 0 0;"></p>
     <div id="refitRow" class="hidden" style="margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center;">
@@ -489,6 +494,8 @@ const keyList = $('keyList');
 const addKeyBtn = $('addKeyBtn');
 const resetKeysBtn = $('resetKeysBtn');
 const keyHint = $('keyHint');
+const skinModeSelect = $('skinModeSelect');
+const skinModeNote = $('skinModeNote');
 const brandTiles = $('brandTiles');
 const dirtyLabel = $('dirtyLabel');
 const saveBtn = $('saveBtn');
@@ -520,7 +527,8 @@ function settingsOf(s) {
   return {
     title: s.title,
     tagline: s.tagline,
-    flapKeys: (s.flapKeys || []).map((k) => ({ code: k.code, key: k.key, label: k.label }))
+    flapKeys: (s.flapKeys || []).map((k) => ({ code: k.code, key: k.key, label: k.label })),
+    skinMode: s.skinMode || 'random'
   };
 }
 
@@ -667,11 +675,41 @@ function makeTile(id, label, opts) {
   return el;
 }
 
+/* "Bird wears": random, or one of the FILLED slots. A choice whose slot was
+   emptied silently goes back to random (and marks the draft dirty). */
+function renderSkinMode() {
+  const filled = [];
+  draft.images.forEach((img, id) => { const i = slot.skinIndex(id); if (i >= 0) filled.push(i); });
+  filled.sort((a, b) => a - b);
+  const chosen = slot.skinIndex(draft.settings.skinMode);
+  if (draft.settings.skinMode !== 'random' && !filled.includes(chosen)) draft.settings.skinMode = 'random';
+  skinModeSelect.innerHTML = '';
+  const any = document.createElement('option');
+  any.value = 'random';
+  any.textContent = 'Random brand each run';
+  skinModeSelect.appendChild(any);
+  filled.forEach((i) => {
+    const o = document.createElement('option');
+    o.value = slot.skin(i);
+    o.textContent = 'Always skin ' + (i + 1);
+    skinModeSelect.appendChild(o);
+  });
+  skinModeSelect.value = draft.settings.skinMode;
+  skinModeSelect.disabled = busy || filled.length === 0;
+  skinModeNote.textContent = filled.length === 0
+    ? 'Upload a skin first - the default bird flies until then.'
+    : draft.settings.skinMode === 'random'
+      ? 'Every run picks one of the ' + filled.length + ' skin' + (filled.length === 1 ? '' : 's') + ' at random.'
+      : 'Every run wears this one brand.';
+}
+
 function renderSkinTiles() {
+  renderSkinMode();
   skinTiles.innerHTML = '';
   const frag = document.createDocumentFragment();
   for (let i = 0; i < LIMITS.MAX_SKINS; i++) {
-    frag.appendChild(makeTile(slot.skin(i), 'Skin ' + (i + 1), {
+    const inUse = draft.settings.skinMode === slot.skin(i);
+    frag.appendChild(makeTile(slot.skin(i), 'Skin ' + (i + 1) + (inUse ? ' \u00b7 in use' : ''), {
       placeholder: S.placeholders.skin(), meta: 'Empty slot · default bird'
     }));
   }
@@ -716,6 +754,7 @@ function updateDirtyUI() {
   importBtn.disabled = !storageOk || busy;
   exportBtn.disabled = !storageOk || busy;
   if (draft) renderKeys();
+  if (draft) skinModeSelect.disabled = busy || skinModeSelect.options.length <= 1;
 }
 
 /* ---------- flap keys ---------- */
@@ -1028,6 +1067,11 @@ resetBtn.addEventListener('click', resetAll);
 refitBtn.addEventListener('click', refitSkins);
 addKeyBtn.addEventListener('click', () => startRecording(-1));
 resetKeysBtn.addEventListener('click', resetKeys);
+skinModeSelect.addEventListener('change', () => {
+  draft.settings.skinMode = skinModeSelect.value;
+  renderSkinTiles();
+  updateDirtyUI();
+});
 window.addEventListener('keydown', onRecordKey, true);
 exportBtn.addEventListener('click', exportAll);
 

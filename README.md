@@ -52,7 +52,8 @@ progress when the window closes still saves.
   gallery means the default amber bird. Every upload is made the **same size**: transparent margins are
   trimmed and the logo is fitted into a 512 x 512 square with even padding, so no brand looks bigger
   or smaller on the bird than another (the hit circle never changes anyway). Skins uploaded before this
-  rule show a **Make all skins the same size** button - press it, then Save. **Flap keys** lists the
+  rule show a **Make all skins the same size** button - press it, then Save. **Bird wears** picks a
+  random brand each run (default) or one fixed skin. **Flap keys** lists the
   keyboard keys that flap - and press Start / restart - so an arcade button box wired to one key runs
   the whole station (default `W`; `N` stays the staff skip). Same rules as Flip Match:
   browser-only storage, same origin as the game, *Export* / *Import* to copy to the backup device.

@@ -46,7 +46,10 @@
     title: 'WP FLAPPY CHALLENGE',
     tagline: 'WP/CONNECT × DIGICON 2026',
     // Keys that flap (and start / restart a run). W was the hard-coded key.
-    flapKeys: [{ code: 'KeyW', key: 'w', label: 'W' }]
+    flapKeys: [{ code: 'KeyW', key: 'w', label: 'W' }],
+    // Which brand the bird wears: 'random' (a new pick every run) or one
+    // skin slot id such as 'skin-2' (always that brand).
+    skinMode: 'random'
   };
 
   // Deck artwork shipped with the game (WP Gaming DigiCon 2026 deck). Relative
@@ -147,13 +150,23 @@
     return false;
   }
 
+  // 'random' or a skin slot id; whether that slot actually holds an image is
+  // the game's problem (it falls back to random), so an emptied slot never
+  // breaks a saved config.
+  function normalizeSkinMode(value) {
+    if (typeof value !== 'string') return DEFAULTS.skinMode;
+    if (value === 'random') return 'random';
+    return slot.skinIndex(value) >= 0 ? value : DEFAULTS.skinMode;
+  }
+
   function normalizeSettings(raw) {
     var src = raw && typeof raw === 'object' ? raw : {};
     var out = {
       version: SCHEMA_VERSION,
       title: cleanText(src.title, LIMITS.TITLE_MAX, DEFAULTS.title),
       tagline: cleanText(src.tagline, LIMITS.TAGLINE_MAX, DEFAULTS.tagline),
-      flapKeys: normalizeKeys(src.flapKeys)
+      flapKeys: normalizeKeys(src.flapKeys),
+      skinMode: normalizeSkinMode(src.skinMode)
     };
     if (Number.isFinite(src.updatedAt)) out.updatedAt = src.updatedAt;
     return out;
@@ -524,7 +537,8 @@
           settings: {
             title: cfg.settings.title,
             tagline: cfg.settings.tagline,
-            flapKeys: cfg.settings.flapKeys
+            flapKeys: cfg.settings.flapKeys,
+            skinMode: cfg.settings.skinMode
           },
           images: images
         };
@@ -606,10 +620,11 @@
       return fallback;
     }
     // Only slots that actually hold an image - gaps in the gallery are fine.
+    // Each entry keeps its slot id so settings.skinMode can name one brand.
     var skins = [];
     for (var i = 0; i < LIMITS.MAX_SKINS; i++) {
       var rec = cfg.images.get(slot.skin(i));
-      if (rec && rec.blob instanceof Blob) skins.push(use(rec, ''));
+      if (rec && rec.blob instanceof Blob) skins.push({ id: slot.skin(i), url: use(rec, '') });
     }
     return {
       skins: skins,
