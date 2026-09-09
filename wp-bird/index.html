@@ -358,7 +358,7 @@
             >
               HOW TO PLAY
             </h2>
-            <p class="menu-instr text-white font-extrabold leading-snug">
+            <p id="menuInstr" class="menu-instr text-white font-extrabold leading-snug">
               Tap to fly. Thread every gap and rack up points &mdash; the higher
               you score, the higher you land on the leaderboard.
             </p>
@@ -452,6 +452,7 @@
       const menuTitle = document.getElementById("menuTitle");
       const menuTagline = document.getElementById("menuTagline");
       const menuMark = document.getElementById("menuMark");
+      const menuInstr = document.getElementById("menuInstr");
 
       // Deck accent, used for particles and the procedurally-drawn bird.
       const WP_AMBER = "#ffb300";
@@ -1058,6 +1059,11 @@
         menuTagline.textContent = s.tagline;
         menuLogo.src = birdAssets.logo;
         menuMark.src = birdAssets.mark;
+        // Admin-set keys: they flap, and they press Start / restart too.
+        flapKeys = s.flapKeys;
+        const keyNames = flapKeys.map((k) => k.label).join(" / ");
+        menuInstr.textContent =
+          "Tap or press " + keyNames + " to fly. Thread every gap and rack up points \u2014 the higher you score, the higher you land on the leaderboard.";
         skinImages = birdAssets.skins.map((url) => {
           const img = new Image();
           img.decoding = "async";
@@ -1343,8 +1349,9 @@
       }
 
       // Single flap / start action for classic flappy controls
-      const FLAP_KEYS = ["w", "W"];
-      const START_KEYS = ["w", "W"];
+      // Which keys flap (and start / restart) - set in admin.html, applied by
+      // applyBirdConfig. Default is W, the key this game always used.
+      let flapKeys = BirdStore.normalizeSettings({}).flapKeys;
 
       function tryFlapOrStart() {
         if (currentState === "PLAYING") {
@@ -1385,8 +1392,10 @@
           return;
         }
 
+        // Holding a key must not auto-repeat into a flap storm.
+        if (e.repeat) return;
         if (currentState === "PLAYING") {
-          if (FLAP_KEYS.includes(e.key)) {
+          if (BirdStore.keys.matchesAny(e, flapKeys)) {
             e.preventDefault();
             bird.flap();
           }
@@ -1394,7 +1403,8 @@
           (currentState === "START" || currentState === "GAMEOVER") &&
           !gameOverCooldown
         ) {
-          if (START_KEYS.includes(e.key)) {
+          // One arcade button does everything: the flap keys also start.
+          if (BirdStore.keys.matchesAny(e, flapKeys)) {
             e.preventDefault();
             startCountdown();
           }
@@ -1446,6 +1456,7 @@
           reload: loadBirdConfig,
           // Hidden-pane tests: draw the bird on the current frame and say where it is.
           drawBird: () => bird.draw(),
+          keys: () => flapKeys,
           birdPos: () => ({ x: bird.x, y: bird.y, r: bird.radius }),
         };
       }

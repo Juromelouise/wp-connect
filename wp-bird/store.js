@@ -30,12 +30,23 @@
     MAX_UPLOAD_BYTES: 15 * 1024 * 1024,  // reject bigger source files
     MAX_IMPORT_IMAGE_BYTES: 6 * 1024 * 1024,
     TITLE_MAX: 40,
-    TAGLINE_MAX: 80
+    TAGLINE_MAX: 80,
+    // Every skin is normalised to this square: transparent margins trimmed,
+    // then the logo fitted inside with even padding. So a brand that ships
+    // with baked-in whitespace, or a wide wordmark, renders the SAME size on
+    // the bird as a tight square badge does.
+    SKIN_SIDE: 512,
+    SKIN_PADDING: 0.06,                  // fraction of SKIN_SIDE kept clear on each edge
+    TRIM_SCAN_SIDE: 1024,                // alpha scan happens at most at this size
+    TRIM_ALPHA: 8,                       // pixels this transparent or more count as empty
+    MAX_KEYS: 12                         // keyboard keys that flap (arcade button boxes send key codes)
   };
 
   var DEFAULTS = {
     title: 'WP FLAPPY CHALLENGE',
-    tagline: 'WP/CONNECT × DIGICON 2026'
+    tagline: 'WP/CONNECT × DIGICON 2026',
+    // Keys that flap (and start / restart a run). W was the hard-coded key.
+    flapKeys: [{ code: 'KeyW', key: 'w', label: 'W' }]
   };
 
   // Deck artwork shipped with the game (WP Gaming DigiCon 2026 deck). Relative
@@ -69,12 +80,80 @@
     return t.length > max ? t.slice(0, max) : t;
   }
 
+  /* ---------- flap keys ----------
+     A key is stored as the KeyboardEvent's physical `code` (layout-proof, and
+     what arcade button encoders send), plus its `key` for browsers that report
+     no code, plus a label for the admin and the menu. "KeyN" is reserved: it is
+     the staff skip on the start screen. */
+  var RESERVED_CODES = { KeyN: true };
+  var KEY_ID_RE = /^[A-Za-z0-9]{1,32}$/;
+
+  function keyLabelFrom(code, key) {
+    var k = typeof key === 'string' ? key : '';
+    var c = typeof code === 'string' ? code : '';
+    if (k === ' ' || c === 'Space') return 'Space';
+    if (/^Key[A-Z]$/.test(c)) return c.slice(3);
+    if (/^Digit[0-9]$/.test(c)) return c.slice(5);
+    if (/^Numpad/.test(c)) return 'Num ' + c.slice(6);
+    if (/^Arrow/.test(c)) return c.slice(5) + ' arrow';
+    if (k.length === 1) return k.toUpperCase();
+    return k || c || '?';
+  }
+
+  function normalizeKey(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var code = typeof raw.code === 'string' && KEY_ID_RE.test(raw.code) ? raw.code : '';
+    var key = typeof raw.key === 'string' ? raw.key.slice(0, 16) : '';
+    if (!code && !key) return null;
+    if (RESERVED_CODES[code] || (!code && key.toLowerCase() === 'n')) return null;
+    var label = cleanText(raw.label, 24, '') || keyLabelFrom(code, key);
+    return { code: code, key: key, label: label };
+  }
+
+  function sameKey(a, b) {
+    if (!a || !b) return false;
+    if (a.code && b.code) return a.code === b.code;
+    return !!a.key && !!b.key && a.key.toLowerCase() === b.key.toLowerCase();
+  }
+
+  function normalizeKeys(list) {
+    var out = [];
+    (Array.isArray(list) ? list : []).forEach(function (raw) {
+      var k = normalizeKey(raw);
+      if (!k) return;
+      for (var i = 0; i < out.length; i++) if (sameKey(out[i], k)) return;
+      if (out.length < LIMITS.MAX_KEYS) out.push(k);
+    });
+    if (out.length) return out;
+    return DEFAULTS.flapKeys.map(function (k) { return { code: k.code, key: k.key, label: k.label }; });
+  }
+
+  function keyFromEvent(e) {
+    if (!e) return null;
+    var code = typeof e.code === 'string' ? e.code : '';
+    var key = typeof e.key === 'string' ? e.key : '';
+    return normalizeKey({ code: code, key: key, label: keyLabelFrom(code, key) });
+  }
+
+  function keyMatches(e, k) {
+    if (!e || !k) return false;
+    if (k.code && typeof e.code === 'string' && e.code) return e.code === k.code;
+    var ek = typeof e.key === 'string' ? e.key : '';
+    return !!k.key && ek.toLowerCase() === k.key.toLowerCase();
+  }
+
+  function keyMatchesAny(e, list) {
+    for (var i = 0; i < (list || []).length; i++) if (keyMatches(e, list[i])) return true;
+    return false;
+  }
+
   function normalizeSettings(raw) {
     var src = raw && typeof raw === 'object' ? raw : {};
     var out = {
       version: SCHEMA_VERSION,
       title: cleanText(src.title, LIMITS.TITLE_MAX, DEFAULTS.title),
-      tagline: cleanText(src.tagline, LIMITS.TAGLINE_MAX, DEFAULTS.tagline)
+      tagline: cleanText(src.tagline, LIMITS.TAGLINE_MAX, DEFAULTS.tagline),
+      flapKeys: normalizeKeys(src.flapKeys)
     };
     if (Number.isFinite(src.updatedAt)) out.updatedAt = src.updatedAt;
     return out;
@@ -290,6 +369,58 @@
   // Skins keep transparency: WebP (lossless-ish) first, PNG when the browser
   // cannot encode WebP - never JPEG, a bird with a black box round it is worse
   // than no skin at all.
+  /* Bounding box of the non-transparent pixels, scanned at a bounded size so
+     a huge source does not cost a huge getImageData. Fully transparent (or
+     unreadable) images keep their full frame. */
+  function trimBox(source, w, h) {
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    g.drawImage(source, 0, 0, w, h);
+    var data;
+    try { data = g.getImageData(0, 0, w, h).data; }
+    catch (e) { return { x: 0, y: 0, w: w, h: h }; }
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] > LIMITS.TRIM_ALPHA) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return { x: 0, y: 0, w: w, h: h };
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  }
+
+  /* Draw the trimmed logo centred in a SKIN_SIDE square with even padding.
+     Aspect ratio is kept; the longer side of the trimmed logo fills the box. */
+  function drawSquareSkin(decoded, canvas) {
+    var side = LIMITS.SKIN_SIDE;
+    var scan = Math.min(1, LIMITS.TRIM_SCAN_SIDE / Math.max(decoded.width, decoded.height));
+    var sw = Math.max(1, Math.round(decoded.width * scan));
+    var sh = Math.max(1, Math.round(decoded.height * scan));
+    var box = trimBox(decoded.source, sw, sh);
+    var sx = box.x / scan, sy = box.y / scan, sW = box.w / scan, sH = box.h / scan;
+    var pad = side * LIMITS.SKIN_PADDING;
+    var inner = side - pad * 2;
+    var fit = Math.min(inner / sW, inner / sH);
+    var dw = sW * fit, dh = sH * fit;
+    canvas.width = side;
+    canvas.height = side;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(decoded.source, sx, sy, sW, sH, (side - dw) / 2, (side - dh) / 2, dw, dh);
+  }
+
+  /* True when a stored skin predates the square normalisation. */
+  function isSquareSkin(rec) {
+    return !!rec && rec.width === LIMITS.SKIN_SIDE && rec.height === LIMITS.SKIN_SIDE;
+  }
+
+  // options.square: trim + fit into the SKIN_SIDE square (bird skins).
   function processImageFile(file, options) {
     var opts = options || {};
     var maxSide = opts.maxSide || LIMITS.MAX_SIDE;
@@ -304,14 +435,19 @@
       var result;
       try {
         if (!decoded.width || !decoded.height) throw new Error('Could not read the image size.');
-        var scale = Math.min(1, maxSide / Math.max(decoded.width, decoded.height));
-        var w = Math.max(1, Math.round(decoded.width * scale));
-        var h = Math.max(1, Math.round(decoded.height * scale));
         var canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(decoded.source, 0, 0, w, h);
+        var w, h;
+        if (opts.square) {
+          drawSquareSkin(decoded, canvas);
+          w = h = LIMITS.SKIN_SIDE;
+        } else {
+          var scale = Math.min(1, maxSide / Math.max(decoded.width, decoded.height));
+          w = Math.max(1, Math.round(decoded.width * scale));
+          h = Math.max(1, Math.round(decoded.height * scale));
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(decoded.source, 0, 0, w, h);
+        }
         result = canvasToBlob(canvas, 'image/webp', 0.9).then(function (blob) {
           if (blob && blob.type === 'image/webp') return blob;
           return canvasToBlob(canvas, 'image/png');
@@ -387,7 +523,8 @@
           exportedAt: now.toISOString(),
           settings: {
             title: cfg.settings.title,
-            tagline: cfg.settings.tagline
+            tagline: cfg.settings.tagline,
+            flapKeys: cfg.settings.flapKeys
           },
           images: images
         };
@@ -527,6 +664,16 @@
     normalizeSettings: normalizeSettings,
     defaultConfig: defaultConfig,
     processImageFile: processImageFile,
+    isSquareSkin: isSquareSkin,
+    keys: {
+      fromEvent: keyFromEvent,
+      matches: keyMatches,
+      matchesAny: keyMatchesAny,
+      same: sameKey,
+      label: keyLabelFrom,
+      normalize: normalizeKeys,
+      reserved: Object.keys(RESERVED_CODES)
+    },
     measureBlob: measureBlob,
     blobToDataURL: blobToDataURL,
     dataURLToBlob: dataURLToBlob,

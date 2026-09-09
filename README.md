@@ -49,7 +49,12 @@ progress when the window closes still saves.
 - `wp-bird/admin.html` (passcode `BIRD2026`) sets the menu **Title** and **Tagline**, the menu
   **Logo** and the "Presented by" **Mark**, and the **Bird skins** gallery: up to 12 brand images.
   **Every run the bird wears one of them at random** (the same one for the whole run); an empty
-  gallery means the default amber bird. Square, transparent PNGs look best. Same rules as Flip Match:
+  gallery means the default amber bird. Every upload is made the **same size**: transparent margins are
+  trimmed and the logo is fitted into a 512 x 512 square with even padding, so no brand looks bigger
+  or smaller on the bird than another (the hit circle never changes anyway). Skins uploaded before this
+  rule show a **Make all skins the same size** button - press it, then Save. **Flap keys** lists the
+  keyboard keys that flap - and press Start / restart - so an arcade button box wired to one key runs
+  the whole station (default `W`; `N` stays the staff skip). Same rules as Flip Match:
   browser-only storage, same origin as the game, *Export* / *Import* to copy to the backup device.
 
 ## 3. Staff keys (on the game's start screen)
