@@ -122,6 +122,14 @@ that key** — re-enter the new one there if it is deployed.
 2. Do the stations / the board return for **DigiCon Oct 15–16**? If yes: set the new opening window
    in the admin and press **Reset board** on both boards before doors.
 
+## Free play (no QR)
+
+`wp-bird/trial.html` opens WP Flappy Challenge in **free play**: no QR, no station key, and nothing is
+posted to CCE Play - the run is simply dropped. It is the same game file (`index.html?trial=1`) with
+the network script swapped for a stub, so skins, flap keys and branding from `admin.html` all apply.
+Use it to try a config or to let people play for fun; the leaderboard only takes runs from the real
+station screen.
+
 ## Local testing
 
 ```

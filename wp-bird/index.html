@@ -322,7 +322,9 @@
               <div class="legion-text" id="scoreDisplay">0</div>
               <div id="hudPlayer" class="hidden"><span id="hudPlayerName"></span></div>
             </div>
-            <div class="flex flex-col items-end">
+            <!-- No on-screen goal: the leaderboard is the target. Kept (hidden)
+                 only because the script still writes GOAL_SCORE into it. -->
+            <div class="hidden">
               <span
                 class="hud-label text-gray-300 font-bold uppercase tracking-wider"
                 >Goal</span
@@ -359,8 +361,9 @@
               HOW TO PLAY
             </h2>
             <p id="menuInstr" class="menu-instr text-white font-extrabold leading-snug">
-              Tap to fly. Thread every gap and rack up points &mdash; the higher
-              you score, the higher you land on the leaderboard.
+              Tap or press the button to flap. Thread every gap and rack up
+              points &mdash; the higher you score, the higher you land on the
+              leaderboard.
             </p>
             <div id="stationPanel" class="hidden">
               <div id="stationQr"></div>
@@ -389,7 +392,7 @@
             >
               RUN OVER!
             </h2>
-            <p class="end-sub text-white font-extrabold leading-snug">
+            <p id="endSub" class="end-sub text-white font-extrabold leading-snug">
               That is your score locked in.<br />
               <span style="color: #ffb300">Check the board on CCE Play!</span>
             </p>
@@ -424,7 +427,15 @@
       </div>
     </div>
 
-    <script src="station.js"></script>
+    <script>
+      // ?trial=1 (what trial.html opens): free play with no QR and no server.
+      // The network station script is swapped for a stub that never posts.
+      document.write(
+        '<script src="' +
+          (new URLSearchParams(location.search).has("trial") ? "station-trial.js" : "station.js") +
+          '"><' + '/script>'
+      );
+    </script>
     <script src="store.js"></script>
     <script>
       const canvas = document.getElementById("gameCanvas");
@@ -453,6 +464,9 @@
       const menuTagline = document.getElementById("menuTagline");
       const menuMark = document.getElementById("menuMark");
       const menuInstr = document.getElementById("menuInstr");
+      const endSub = document.getElementById("endSub");
+      // Free play (trial.html): no QR, no key, nothing saved. See station-trial.js.
+      const TRIAL = new URLSearchParams(location.search).has("trial");
 
       // Deck accent, used for particles and the procedurally-drawn bird.
       const WP_AMBER = "#ffb300";
@@ -621,8 +635,10 @@
       // The goal is a MILESTONE, not the end of the run: play continues until
       // the bird crashes, so the leaderboard ranks by how far people actually
       // got instead of everyone tying at the cap.
-      // TODO(organizer): confirm 20 is the right on-screen goal.
+      // Nothing about a goal is shown any more (the leaderboard is the target);
+      // GOAL_SCORE only shapes the difficulty ramp and the run's `won` flag.
       const GOAL_SCORE = 20;
+      const SHOW_GOAL_BANNER = false;
       let goalBannerTimer = null;
 
       // Entities
@@ -862,7 +878,7 @@
                 createParticles(bird.x, bird.y, 15);
 
                 // Milestone only - the run keeps going (see GOAL_SCORE).
-                if (score === GOAL_SCORE) {
+                if (SHOW_GOAL_BANNER && score === GOAL_SCORE) {
                   playSound("win");
                   goalBanner.classList.remove("hidden");
                   clearTimeout(goalBannerTimer);
@@ -1054,16 +1070,17 @@
         if (birdAssets) birdAssets.revoke();
         birdAssets = BirdStore.resolveAssets(cfg);
         const s = cfg.settings;
-        document.title = s.title + " \u2014 WP/Connect \u00d7 DigiCon 2026";
+        document.title =
+          s.title + (TRIAL ? " \u2014 TRIAL (nothing saved)" : " \u2014 WP/Connect \u00d7 DigiCon 2026");
         menuTitle.textContent = s.title;
         menuTagline.textContent = s.tagline;
         menuLogo.src = birdAssets.logo;
         menuMark.src = birdAssets.mark;
-        // Admin-set keys: they flap, and they press Start / restart too.
+        // Admin-set keys: they flap, and they press Start / restart too. The
+        // menu never names them - the booth has one arcade button.
         flapKeys = s.flapKeys;
-        const keyNames = flapKeys.map((k) => k.label).join(" / ");
         menuInstr.textContent =
-          "Tap or press " + keyNames + " to fly. Thread every gap and rack up points \u2014 the higher you score, the higher you land on the leaderboard.";
+          "Tap or press the button to flap. Thread every gap and rack up points \u2014 the higher you score, the higher you land on the leaderboard.";
         skinImages = birdAssets.skins.map((url) => {
           const img = new Image();
           img.decoding = "async";
@@ -1121,7 +1138,9 @@
 
       function stationCanPlay() {
         return (
-          stationSnapshot.phase === "claimed" || stationSnapshot.phase === "error"
+          stationSnapshot.phase === "claimed" ||
+          stationSnapshot.phase === "error" ||
+          stationSnapshot.phase === "trial"
         );
       }
 
@@ -1155,6 +1174,8 @@
             return "OFFLINE \u2014 YOU CAN STILL PLAY, BUT SCORES WON\u2019T BE SAVED";
           case "closed":
             return "ARCADE CLOSED\n" + (st.error || "Come back when the gaming block opens");
+          case "trial":
+            return "FREE PLAY \u2014 NO QR, NOTHING IS SAVED\nPress START or the button to play";
           default:
             return "";
         }
@@ -1169,6 +1190,9 @@
           st.phase === "done";
         if (named && st.player && st.player.username) {
           hudPlayerName.textContent = st.player.username;
+          hudPlayer.classList.remove("hidden");
+        } else if (st.phase === "trial") {
+          hudPlayerName.textContent = "FREE PLAY";
           hudPlayer.classList.remove("hidden");
         } else {
           hudPlayer.classList.add("hidden");
@@ -1191,7 +1215,9 @@
         startBtn.classList.toggle("hidden", !stationCanPlay());
 
         stationSave.textContent =
-          st.phase === "submitting"
+          st.phase === "trial"
+            ? "TRIAL RUN \u2014 NOT SAVED"
+            : st.phase === "submitting"
             ? "SAVING YOUR RUN\u2026"
             : st.phase === "done"
               ? "SAVED TO THE LEADERBOARD"
@@ -1441,6 +1467,10 @@
       // Initial setup
       WPStation.configure({ game: "wp-bird", gameLabel: "WP FLAPPY" });
       WPStation.on(renderStation);
+      if (TRIAL) {
+        endSub.textContent =
+          "Free play \u2014 this run is not saved. Scan the QR on the real station to get on the board.";
+      }
       init();
       loadBirdConfig();
       // An admin save in another tab, or the tab coming back, re-reads the set.
@@ -1457,6 +1487,7 @@
           // Hidden-pane tests: draw the bird on the current frame and say where it is.
           drawBird: () => bird.draw(),
           keys: () => flapKeys,
+          trial: TRIAL,
           birdPos: () => ({ x: bird.x, y: bird.y, r: bird.radius }),
         };
       }
