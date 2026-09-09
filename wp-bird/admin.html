@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP Flappy Admin</title>
+<!--
+  WP Flappy Challenge — admin page (same shape as Flip Match's).
+  Saves bird skins + branding into THIS browser's IndexedDB (no server).
+  The game (index.html) must be opened from the same address (host + port)
+  as this page or it will not see the saved skins. Use Export / Import to
+  move a card set to another device.
+-->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e1b4b'/%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='none' stroke='%235eead4' stroke-width='5'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Impact,Arial Black,sans-serif' font-size='34' fill='%235eead4'%3E?%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap">
+<style>
+  :root {
+    --bg: #12060a;
+    --panel: #1c0b10;
+    --panel2: #2a1016;
+    --line: rgba(255, 255, 255, 0.1);
+    --text: #fff5f5;
+    --dim: #c9a3a9;
+    --accent: #ff3b47;
+    --accent2: #ffb300;
+    --danger: #f87171;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { color-scheme: dark; }
+  html, body { min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+    padding-bottom: 7.5rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
+  .hidden { display: none !important; }
+
+  h1 { font-size: 1.5rem; font-weight: 900; letter-spacing: 0.01em; }
+  h1 span { color: var(--accent); }
+  .status { font-size: 0.8rem; color: var(--dim); margin-top: 0.3rem; }
+  .status.warn { color: var(--warn); }
+
+  header.top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .top-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  .btn {
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    transition: background 0.15s, transform 0.1s, opacity 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #232d52; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .btn-primary { background: #e30613; color: #fff; border-color: transparent; }
+  .btn-primary:hover { background: #ff2230; }
+  .btn-danger { color: #fecaca; border-color: rgba(248, 113, 113, 0.4); }
+  .btn-danger:hover { background: rgba(248, 113, 113, 0.15); }
+  .btn-sm { padding: 0.45rem 0.6rem; font-size: 0.75rem; }
+
+  .banner {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.5);
+    color: #fecaca;
+    padding: 0.8rem 1rem;
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .panel h2 {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+  }
+  .panel .hint { font-size: 0.85rem; color: var(--dim); margin-bottom: 1rem; line-height: 1.5; }
+  .panel .hint:last-child { margin-bottom: 0; }
+
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .field input, .field select {
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    outline: none;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.2);
+  }
+  .field .count { font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 0.72rem; }
+  .swatch-row { display: flex; align-items: center; gap: 0.6rem; }
+  .field input[type="color"] {
+    width: 3.4rem;
+    height: 2.7rem;
+    padding: 0.2rem;
+    cursor: pointer;
+    flex: none;
+  }
+  .swatch-row .count { font-family: Consolas, Menlo, monospace; font-size: 0.85rem; color: var(--text); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+  .tile {
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .tile.is-over { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.25); }
+  .tile-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .tile-name { font-weight: 800; font-size: 0.9rem; }
+  .badge {
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .badge.custom { background: rgba(94, 234, 212, 0.15); color: var(--accent); }
+  .badge.pending { background: rgba(251, 191, 36, 0.18); color: var(--warn); }
+  .tile-preview {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: repeating-conic-gradient(#222b4a 0 25%, #1a2140 0 50%) 0 0 / 16px 16px;
+    cursor: pointer;
+  }
+  .tile-preview.wide { aspect-ratio: 16 / 9; }
+  .tile-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .tile-preview.cover img { object-fit: cover; }
+  .tile-preview .drop-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(13, 5, 36, 0.72);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tile-preview:hover .drop-hint, .tile.is-over .drop-hint { opacity: 1; }
+  .tile-meta { font-size: 0.7rem; color: var(--dim); min-height: 1em; }
+  .tile-actions { display: flex; gap: 0.4rem; }
+  .tile-actions .btn { flex: 1; }
+  .tiles.brand { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+  .help ul { padding-left: 1.2rem; font-size: 0.85rem; color: var(--dim); line-height: 1.7; }
+  .help strong { color: var(--text); }
+  code { font-family: Consolas, Menlo, monospace; font-size: 0.85em; background: rgba(255, 255, 255, 0.07); padding: 0.1em 0.35em; border-radius: 0.3em; }
+
+  #saveBar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: rgba(11, 15, 30, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line);
+    padding: 0.75rem 1rem;
+  }
+  #saveBar .inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  #dirtyLabel { font-size: 0.85rem; color: var(--dim); font-weight: 600; }
+  #dirtyLabel.dirty { color: var(--warn); font-weight: 800; }
+  .bar-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: auto; }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 6.5rem;
+    transform: translateX(-50%) translateY(1rem);
+    background: #0f172a;
+    border: 1px solid var(--line);
+    color: #fff;
+    padding: 0.7rem 1.1rem;
+    border-radius: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 60;
+    max-width: 90vw;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.error { border-color: var(--danger); color: #fecaca; }
+
+  /* passcode gate */
+  #gateOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background:
+      radial-gradient(60% 45% at 100% 0%, rgba(28, 31, 214, 0.7), transparent 70%),
+      radial-gradient(50% 35% at 0% 100%, rgba(255, 179, 0, 0.8), transparent 65%),
+      linear-gradient(165deg, #f0101c 0%, #c40009 45%, #8f0000 100%);
+  }
+  #gatePanel { background: rgba(12, 4, 6, 0.85); backdrop-filter: blur(6px); }
+  #gatePanel { width: 100%; max-width: 380px; text-align: center; padding: 2rem 1.5rem; }
+  #gatePanel h1 { margin-bottom: 0.25rem; }
+  #gatePanel .hint { margin-bottom: 1.25rem; }
+  #gateInput {
+    font: inherit;
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-align: center;
+    color: var(--text);
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    width: 100%;
+    outline: none;
+    margin-bottom: 0.75rem;
+  }
+  #gateInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.2); }
+  #gateBtn { width: 100%; padding: 0.85rem; font-size: 0.95rem; }
+  #gateError { color: var(--danger); font-size: 0.85rem; font-weight: 700; margin-top: 0.75rem; min-height: 1.2em; }
+  @keyframes gateShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-10px); }
+    40%, 80% { transform: translateX(10px); }
+  }
+  .gate-shake { animation: gateShake 0.4s ease; }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 1rem; }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+    .tiles.brand { grid-template-columns: 1fr; }
+    #saveBar .btn { padding: 0.6rem 0.75rem; font-size: 0.78rem; }
+    .bar-actions { margin-left: 0; width: 100%; }
+    .bar-actions .btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== PASSCODE GATE ===================== -->
+<div id="gateOverlay">
+  <div id="gatePanel" class="panel">
+    <h1>WP Flappy <span>Admin</span></h1>
+    <p class="hint">Enter the admin passcode</p>
+    <input id="gateInput" type="password" autocomplete="off" placeholder="PASSCODE" aria-label="Passcode">
+    <button id="gateBtn" class="btn btn-primary" type="button">UNLOCK</button>
+    <p id="gateError"></p>
+  </div>
+</div>
+
+<!-- ===================== ADMIN ===================== -->
+<div id="adminRoot" class="wrap hidden">
+  <header class="top">
+    <div>
+      <h1>WP Flappy <span>Admin</span></h1>
+      <div id="statusLine" class="status">Loading…</div>
+    </div>
+    <div class="top-actions">
+      <a class="btn" href="index.html" target="_blank" rel="noopener">Open game ↗</a>
+      <button id="lockBtn" class="btn" type="button">Lock</button>
+    </div>
+  </header>
+
+  <div id="storageBanner" class="banner hidden">
+    Storage is unavailable in this browser (private mode, or site data is blocked).
+    The game will show the default bird and nothing can be saved here.
+  </div>
+
+  <section class="panel">
+    <h2>Game settings</h2>
+    <p class="hint">Shown on the menu screen of the game.</p>
+    <div class="fields">
+      <label class="field">
+        Title
+        <input id="titleInput" maxlength="40" autocomplete="off">
+        <span class="count" id="titleCount"></span>
+      </label>
+      <label class="field">
+        Tagline
+        <input id="taglineInput" maxlength="80" autocomplete="off">
+        <span class="count" id="taglineCount"></span>
+      </label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Bird skins</h2>
+    <p class="hint">One image per brand. <strong>Every run the bird wears one of these at random</strong> and keeps it for the whole run; leave the gallery empty for the default bird. Square PNGs with a transparent background look best - the whole image is shown, nothing is cropped, and it is drawn about three times the size of the bird's hit circle, so a logo reads clearly on the TV. Click a tile or drop an image onto it.</p>
+    <div id="skinTiles" class="tiles"></div>
+    <p id="skinNote" class="hint" style="margin: 0.9rem 0 0;"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Logo &amp; mark</h2>
+    <p class="hint">The logo is the menu hero above the title; the mark is the small brand logo under "Presented by". Transparent PNGs work best. Defaults come from the WP Gaming DigiCon 2026 deck.</p>
+    <div id="brandTiles" class="tiles brand"></div>
+  </section>
+
+  <section class="panel help">
+    <h2>How it works</h2>
+    <ul>
+      <li>Everything here is saved <strong>in this browser only</strong>. It is not uploaded anywhere.</li>
+      <li>Open the game from the <strong>same address</strong> (host and port) as this page, in the same browser, and it will use these skins.</li>
+      <li>To set up another device: <strong>Export</strong> here, copy the file over, then <strong>Import</strong> it in the admin on that device.</li>
+      <li>Images are resized to a maximum of <code>512px</code> and stored as WebP (PNG where WebP is unavailable), keeping transparency.</li>
+      <li>The skin is picked <strong>when a run starts</strong>; a run already in progress keeps its bird. Gaps in the gallery are fine - only filled slots are used.</li>
+      <li><strong>Reset to defaults</strong> deletes every uploaded image and the custom title and tagline.</li>
+    </ul>
+  </section>
+</div>
+
+<!-- Save bar -->
+<div id="saveBar" class="hidden">
+  <div class="inner">
+    <span id="dirtyLabel">All changes saved</span>
+    <div class="bar-actions">
+      <button id="resetBtn" class="btn btn-danger" type="button">Reset to defaults</button>
+      <button id="exportBtn" class="btn" type="button">Export</button>
+      <button id="importBtn" class="btn" type="button">Import</button>
+      <button id="saveBtn" class="btn btn-primary" type="button" disabled>Save</button>
+    </div>
+  </div>
+</div>
+
+<input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+<input id="importInput" type="file" accept="application/json,.json" hidden>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="store.js"></script>
+<script>
+(function () {
+'use strict';
+
+/* =========================================================================
+   >>> ADMIN CONFIG <<<
+   The passcode is checked in the browser only (it is visible in this file).
+   It keeps booth visitors out of the admin; it is not real security.
+   ========================================================================= */
+const ADMIN_PASSCODE = 'BIRD2026';
+const PASSCODE_STORAGE_KEY = 'wp-bird-admin-passcode-v1';
+
+const S = window.BirdStore;
+const slot = S.slot;
+const LIMITS = S.LIMITS;
+const $ = (id) => document.getElementById(id);
+
+const gateOverlay = $('gateOverlay');
+const gatePanel = $('gatePanel');
+const gateInput = $('gateInput');
+const gateBtn = $('gateBtn');
+const gateError = $('gateError');
+const adminRoot = $('adminRoot');
+const saveBar = $('saveBar');
+const statusLine = $('statusLine');
+const storageBanner = $('storageBanner');
+const titleInput = $('titleInput');
+const taglineInput = $('taglineInput');
+const titleCount = $('titleCount');
+const taglineCount = $('taglineCount');
+const skinTiles = $('skinTiles');
+const skinNote = $('skinNote');
+const brandTiles = $('brandTiles');
+const dirtyLabel = $('dirtyLabel');
+const saveBtn = $('saveBtn');
+const resetBtn = $('resetBtn');
+const exportBtn = $('exportBtn');
+const importBtn = $('importBtn');
+const lockBtn = $('lockBtn');
+const fileInput = $('fileInput');
+const importInput = $('importInput');
+const toastEl = $('toast');
+
+/* ---------- draft model ---------- */
+let draft = null;             // { settings:{title,tagline}, images: Map<id,{blob,url,width,height,type}> }
+let existingIds = new Set();  // slot ids currently stored in IndexedDB
+let imageOps = new Map();     // slot id -> {blob,width,height} (put) | null (delete), pending since last save
+let baselineSettings = '';
+let lastSavedAt = null;
+let storageOk = true;
+let currentSlot = null;
+let busy = false;
+let toastTimer = null;
+
+function isDirty() {
+  return !!draft && (JSON.stringify(draft.settings) !== baselineSettings || imageOps.size > 0);
+}
+
+// the editable subset of settings, in a stable key order for dirty-tracking
+function settingsOf(s) {
+  return { title: s.title, tagline: s.tagline };
+}
+
+function toast(message, kind) {
+  clearTimeout(toastTimer);
+  toastEl.textContent = message;
+  toastEl.classList.toggle('error', kind === 'error');
+  toastEl.classList.add('show');
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), kind === 'error' ? 5000 : 3000);
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+function fmtDate(ms) {
+  try { return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); }
+  catch (e) { return new Date(ms).toString(); }
+}
+
+function revokeAllPreviews() {
+  if (!draft) return;
+  draft.images.forEach((img) => { try { URL.revokeObjectURL(img.url); } catch (e) { /* ignore */ } });
+}
+
+/* ---------- load ---------- */
+async function loadDraft() {
+  revokeAllPreviews();
+  let cfg;
+  try {
+    cfg = await S.loadConfig();
+    storageOk = true;
+  } catch (e) {
+    console.warn('[WP Flappy admin] storage unavailable', e);
+    storageOk = false;
+    cfg = S.defaultConfig();
+  }
+  draft = {
+    settings: settingsOf(cfg.settings),
+    images: new Map()
+  };
+  existingIds = new Set(cfg.images.keys());
+  cfg.images.forEach((rec, id) => {
+    draft.images.set(id, {
+      blob: rec.blob,
+      url: URL.createObjectURL(rec.blob),
+      width: rec.width || 0,
+      height: rec.height || 0,
+      type: rec.type
+    });
+  });
+  imageOps = new Map();
+  lastSavedAt = cfg.isDefault ? null : (cfg.settings.updatedAt || null);
+  baselineSettings = JSON.stringify(draft.settings);
+  renderAll();
+}
+
+/* ---------- render ---------- */
+function renderAll() {
+  renderSettings();
+  renderSkinTiles();
+  renderBrandTiles();
+  renderStatus();
+  updateDirtyUI();
+}
+
+function renderStatus() {
+  storageBanner.classList.toggle('hidden', storageOk);
+  statusLine.classList.toggle('warn', !storageOk);
+  if (!storageOk) {
+    statusLine.textContent = 'Storage unavailable in this browser';
+  } else if (lastSavedAt) {
+    statusLine.textContent = 'Saved in this browser only · Last saved ' + fmtDate(lastSavedAt);
+  } else {
+    statusLine.textContent = 'Nothing saved yet · the game is showing the default bird';
+  }
+}
+
+function renderSettings() {
+  titleInput.value = draft.settings.title;
+  taglineInput.value = draft.settings.tagline;
+  renderCounts();
+}
+
+function renderCounts() {
+  titleCount.textContent = titleInput.value.length + ' / ' + LIMITS.TITLE_MAX;
+  taglineCount.textContent = taglineInput.value.length + ' / ' + LIMITS.TAGLINE_MAX;
+}
+
+function badgeFor(id) {
+  const hasImage = draft.images.has(id);
+  const pending = imageOps.has(id);
+  if (hasImage && pending) return { cls: 'pending', text: 'Unsaved' };
+  if (hasImage) return { cls: 'custom', text: 'Brand' };
+  if (pending) return { cls: 'pending', text: 'Removing' };
+  return { cls: '', text: 'Empty' };
+}
+
+function makeTile(id, label, opts) {
+  const img = draft.images.get(id);
+  const badge = badgeFor(id);
+  const el = document.createElement('div');
+  el.className = 'tile';
+  el.dataset.slot = id;
+  el.innerHTML =
+    '<div class="tile-head"><span class="tile-name"></span><span class="badge"></span></div>' +
+    '<div class="tile-preview' + (opts.cover ? ' cover' : '') + (opts.wide ? ' wide' : '') + '">' +
+      '<img alt="" draggable="false"><div class="drop-hint"></div>' +
+    '</div>' +
+    '<div class="tile-meta"></div>' +
+    '<div class="tile-actions">' +
+      '<button class="btn btn-sm btn-primary" type="button" data-act="upload"></button>' +
+      '<button class="btn btn-sm" type="button" data-act="clear">Clear</button>' +
+    '</div>';
+  el.querySelector('.tile-name').textContent = label;
+  const badgeEl = el.querySelector('.badge');
+  badgeEl.textContent = opts.badgeText && !img && !imageOps.has(id) ? opts.badgeText : badge.text;
+  if (badge.cls) badgeEl.classList.add(badge.cls);
+  el.querySelector('img').src = img ? img.url : opts.placeholder;
+  el.querySelector('.drop-hint').textContent = img ? 'Replace' : 'Upload';
+  el.querySelector('.tile-meta').textContent = img
+    ? ((img.width && img.height) ? img.width + ' × ' + img.height + ' · ' : '') + fmtBytes(img.blob.size)
+    : (opts.meta || 'Default art');
+  el.querySelector('[data-act="upload"]').textContent = img ? 'Replace' : 'Upload';
+  el.querySelector('[data-act="clear"]').disabled = !img;
+
+  const preview = el.querySelector('.tile-preview');
+  preview.addEventListener('click', () => pickFile(id));
+  el.querySelector('[data-act="upload"]').addEventListener('click', () => pickFile(id));
+  el.querySelector('[data-act="clear"]').addEventListener('click', () => clearImage(id));
+  preview.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('is-over'); });
+  preview.addEventListener('dragleave', () => el.classList.remove('is-over'));
+  preview.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('is-over');
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) handleFile(id, file);
+  });
+  return el;
+}
+
+function renderSkinTiles() {
+  skinTiles.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < LIMITS.MAX_SKINS; i++) {
+    frag.appendChild(makeTile(slot.skin(i), 'Skin ' + (i + 1), {
+      placeholder: S.placeholders.skin(), meta: 'Empty slot · default bird'
+    }));
+  }
+  skinTiles.appendChild(frag);
+  let filled = 0;
+  draft.images.forEach((img, id) => { if (slot.skinIndex(id) >= 0) filled++; });
+  skinNote.textContent = filled === 0
+    ? 'No skins yet - the game draws its default amber bird.'
+    : filled + ' brand skin' + (filled === 1 ? '' : 's') + ' in the gallery · each run picks one at random.';
+}
+
+function renderBrandTiles() {
+  brandTiles.innerHTML = '';
+  brandTiles.appendChild(makeTile(slot.LOGO, 'Logo (menu hero)', {
+    placeholder: S.placeholders.logo(), wide: true, meta: 'Deck art · PLUG & PLAY title', badgeText: 'Default'
+  }));
+  brandTiles.appendChild(makeTile(slot.MARK, 'Mark (presented by)', {
+    placeholder: S.placeholders.mark(), wide: true, meta: 'Deck art · WP/G mark', badgeText: 'Default'
+  }));
+}
+
+function rerenderSlot(id) {
+  if (slot.skinIndex(id) >= 0) renderSkinTiles();
+  else renderBrandTiles();
+}
+
+function updateDirtyUI() {
+  const dirty = isDirty();
+  dirtyLabel.textContent = dirty ? 'Unsaved changes' : 'All changes saved';
+  dirtyLabel.classList.toggle('dirty', dirty);
+  saveBtn.disabled = !dirty || !storageOk || busy;
+  resetBtn.disabled = !storageOk || busy;
+  importBtn.disabled = !storageOk || busy;
+  exportBtn.disabled = !storageOk || busy;
+}
+
+/* ---------- images ---------- */
+function pickFile(id) {
+  if (busy) return;
+  currentSlot = id;
+  fileInput.value = '';
+  fileInput.click();
+}
+
+async function handleFile(id, file) {
+  if (busy) return;
+  busy = true;
+  updateDirtyUI();
+  try {
+    const result = await S.processImageFile(file);
+    setImage(id, result);
+    toast('Image ready · remember to Save');
+  } catch (e) {
+    toast(e && e.message ? e.message : 'Could not read that image.', 'error');
+  } finally {
+    busy = false;
+    updateDirtyUI();
+  }
+}
+
+function setImage(id, result) {
+  const old = draft.images.get(id);
+  if (old) { try { URL.revokeObjectURL(old.url); } catch (e) { /* ignore */ } }
+  draft.images.set(id, {
+    blob: result.blob,
+    url: URL.createObjectURL(result.blob),
+    width: result.width,
+    height: result.height,
+    type: result.type
+  });
+  imageOps.set(id, { blob: result.blob, width: result.width, height: result.height });
+  rerenderSlot(id);
+  updateDirtyUI();
+}
+
+function clearImage(id) {
+  const old = draft.images.get(id);
+  if (!old) return;
+  try { URL.revokeObjectURL(old.url); } catch (e) { /* ignore */ }
+  draft.images.delete(id);
+  if (existingIds.has(id)) imageOps.set(id, null);
+  else imageOps.delete(id);
+  rerenderSlot(id);
+  updateDirtyUI();
+}
+
+/* ---------- save / reset / export / import ---------- */
+async function save() {
+  if (!storageOk || busy || !isDirty()) return;
+  busy = true;
+  saveBtn.textContent = 'Saving…';
+  updateDirtyUI();
+  try {
+    const settings = S.normalizeSettings(draft.settings);
+    await S.saveConfig({ settings: settings, imageOps: imageOps });
+    imageOps.forEach((value, id) => {
+      if (value === null) existingIds.delete(id);
+      else existingIds.add(id);
+    });
+    imageOps = new Map();
+    draft.settings = settingsOf(settings);
+    baselineSettings = JSON.stringify(draft.settings);
+    lastSavedAt = settings.updatedAt || Date.now();
+    S.notifyUpdated();
+    renderAll();
+    toast('Saved. The game uses these from its next run.');
+  } catch (e) {
+    toast('Save failed: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    busy = false;
+    saveBtn.textContent = 'Save';
+    updateDirtyUI();
+  }
+}
+
+async function resetAll() {
+  if (!storageOk || busy) return;
+  if (!confirm('Delete ALL saved skins, logo, mark and text on this browser and go back to the defaults?')) return;
+  busy = true;
+  updateDirtyUI();
+  try {
+    await S.clearAll();
+    S.notifyUpdated();
+    await loadDraft();
+    toast('Reset to defaults.');
+  } catch (e) {
+    toast('Reset failed: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    busy = false;
+    updateDirtyUI();
+  }
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function exportAll() {
+  if (!storageOk || busy) return;
+  if (isDirty() && !confirm('Unsaved changes are not included in the export. Export the last saved set anyway?')) return;
+  busy = true;
+  updateDirtyUI();
+  try {
+    const out = await S.exportConfig();
+    downloadText(out.json, out.filename);
+    toast('Exported ' + out.filename + ' (' + out.imageCount + ' image' + (out.imageCount === 1 ? '' : 's') + ').');
+  } catch (e) {
+    toast('Export failed: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    busy = false;
+    updateDirtyUI();
+  }
+}
+
+async function importFile(file) {
+  if (!storageOk || busy || !file) return;
+  busy = true;
+  updateDirtyUI();
+  try {
+    const text = await file.text();
+    const parsed = await S.parseImport(text);
+    let skins = 0;
+    parsed.images.forEach((v, id) => { if (slot.skinIndex(id) >= 0) skins++; });
+    const summary = parsed.images.size + ' image file' + (parsed.images.size === 1 ? '' : 's') + ', ' + skins + ' skin' + (skins === 1 ? '' : 's');
+    if (!confirm('Replace the set on this browser with "' + file.name + '" (' + summary + ')? Unsaved changes will be lost.')) return;
+    await S.replaceAll(parsed);
+    S.notifyUpdated();
+    await loadDraft();
+    toast('Imported ' + file.name + '.');
+  } catch (e) {
+    toast('Import failed: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    busy = false;
+    updateDirtyUI();
+  }
+}
+
+/* ---------- gate ---------- */
+function tryUnlock(candidate, options) {
+  const silent = options && options.silent;
+  if (typeof candidate === 'string' && candidate && candidate === ADMIN_PASSCODE) {
+    try { sessionStorage.setItem(PASSCODE_STORAGE_KEY, candidate); } catch (e) { /* ignore */ }
+    gateOverlay.classList.add('hidden');
+    adminRoot.classList.remove('hidden');
+    saveBar.classList.remove('hidden');
+    gateError.textContent = '';
+    gateInput.value = '';
+    loadDraft();
+    return true;
+  }
+  if (!silent) {
+    gateError.textContent = 'Wrong passcode.';
+    gatePanel.classList.remove('gate-shake');
+    void gatePanel.offsetWidth;
+    gatePanel.classList.add('gate-shake');
+    gateInput.select();
+  }
+  return false;
+}
+
+function relock() {
+  if (isDirty() && !confirm('You have unsaved changes. Lock anyway?')) return;
+  try { sessionStorage.removeItem(PASSCODE_STORAGE_KEY); } catch (e) { /* ignore */ }
+  adminRoot.classList.add('hidden');
+  saveBar.classList.add('hidden');
+  gateOverlay.classList.remove('hidden');
+  gateInput.value = '';
+  gateInput.focus();
+}
+
+/* ---------- wiring ---------- */
+gateBtn.addEventListener('click', () => tryUnlock(gateInput.value.trim()));
+gateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(gateInput.value.trim()); });
+lockBtn.addEventListener('click', relock);
+
+titleInput.addEventListener('input', () => { draft.settings.title = titleInput.value; renderCounts(); updateDirtyUI(); });
+taglineInput.addEventListener('input', () => { draft.settings.tagline = taglineInput.value; renderCounts(); updateDirtyUI(); });
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (file && currentSlot) handleFile(currentSlot, file);
+  fileInput.value = '';
+});
+importBtn.addEventListener('click', () => { if (!busy) { importInput.value = ''; importInput.click(); } });
+importInput.addEventListener('change', () => {
+  const file = importInput.files && importInput.files[0];
+  importInput.value = '';
+  if (file) importFile(file);
+});
+
+saveBtn.addEventListener('click', save);
+resetBtn.addEventListener('click', resetAll);
+exportBtn.addEventListener('click', exportAll);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !adminRoot.classList.contains('hidden')) {
+    e.preventDefault();
+    save();
+  }
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (!isDirty()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+// Boot: reuse a passcode saved earlier in this browser session.
+(function boot() {
+  let saved = '';
+  try { saved = sessionStorage.getItem(PASSCODE_STORAGE_KEY) || ''; } catch (e) { /* ignore */ }
+  if (saved && tryUnlock(saved, { silent: true })) return;
+  gateInput.focus();
+})();
+})();
+</script>
+</body>
+</html>

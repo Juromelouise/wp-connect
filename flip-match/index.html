@@ -1158,6 +1158,7 @@ function stationCopy(s) {
     case 'submitting': return 'SAVING YOUR RUN…';
     case 'done':       return 'SAVED! CHECK THE LEADERBOARD ON CCE PLAY';
     case 'error':      return 'OFFLINE — YOU CAN STILL PLAY, BUT SCORES WON\u2019T BE SAVED';
+    case 'closed':     return 'ARCADE CLOSED\n' + (s.error || 'Come back when the gaming block opens');
     default:           return '';
   }
 }
@@ -1187,7 +1188,7 @@ function renderStation(s) {
   }
   stationQr.classList.toggle('hidden', !showQr);
   stationMsg.textContent = stationCopy(s);
-  stationMsg.classList.toggle('is-warn', s.phase === 'error');
+  stationMsg.classList.toggle('is-warn', s.phase === 'error' || s.phase === 'closed');
   stationPanel.classList.remove('hidden');
   startBtn.classList.toggle('hidden', !stationCanPlay());
 

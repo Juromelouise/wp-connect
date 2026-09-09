@@ -1,12 +1,17 @@
 # WP/Connect arcade stations — run-sheet
 
 Two stations for the WP/Connect × DigiCon 2026 gaming block: **FLIP MATCH** (`flip-match/`) and
-**WP BIRD** (`wp-bird/`). Both are plain static folders (no build step) and talk to CCE Play through
+**WP FLAPPY CHALLENGE** (`wp-bird/` - the folder, URL and game id keep the old `wp-bird` name on purpose). Both are plain static folders (no build step) and talk to CCE Play through
 the identical `station.js` in each — keep those two files byte-identical.
 
 How it works on the night: the TV shows a QR **before** anyone plays → the attendee scans it from
 `cceplay.com/playlab/wpconnect` (or their camera app) → their username appears on the TV and START
 unlocks → they play → the TV posts the run → it lands on the public leaderboard and ticks their quest.
+
+The arcade has an **opening window** set in the CCE Play admin (*WP/Connect → Arcade*). Outside it
+the TVs show "ARCADE CLOSED - opens <time>" instead of a QR, phones cannot check in, and the public
+page says when it opens. The TV re-asks every minute, so it opens itself on time. A run already in
+progress when the window closes still saves.
 
 ---
 
@@ -19,12 +24,12 @@ unlocks → they play → the TV posts the run → it lands on the public leader
   at the plinth can reach `admin.html`, view-source or the console: set the Chrome/Edge policy
   `DeveloperToolsAvailability = 2` under `HKLM\SOFTWARE\Policies\Google\Chrome` (or `...\Microsoft\Edge`).
   The station key sits in that browser's localStorage — treat the PC like it holds the key.
-- **The keyboard stays in the staffer's pocket.** Attendees only need touch (WP Bird) or the hand
+- **The keyboard stays in the staffer's pocket.** Attendees only need touch (WP Flappy Challenge) or the hand
   tracker / touch (Flip Match). Every staff key below is a keyboard key on purpose.
 - On first load the **Station setup** overlay asks for the key: paste `KIOSK_API_KEY` (the same secret
   the LOCK & LOADOUT kiosk uses; it lives in Render's env for the backend). Leave *Station label*
-  blank, or type a short name (`FLIP`, `BIRD`) — it shows on the TV and on players' phones.
-- Wifi down at setup? The overlay says so and won't store a bad key. WP Bird's layout script is
+  blank, or type a short name (`FLIP`, `FLAPPY`) — it shows on the TV and on players' phones.
+- Wifi down at setup? The overlay says so and won't store a bad key. WP Flappy Challenge's layout script is
   vendored (`wp-bird/vendor/tailwind-3.4.17.js`) so a cold reload during an outage still boots.
 
 ## 2. Flip Match config
@@ -38,6 +43,14 @@ unlocks → they play → the TV posts the run → it lands on the public leader
   outrank one on a 4 × 4 (8 pairs) — but a mid-event board change still splits the board into two
   tiers. Only **Board size** moves a run between tiers; **Brand images** never affects ranking.
   Settle it before doors.
+
+## 2b. WP Flappy Challenge config
+
+- `wp-bird/admin.html` (passcode `BIRD2026`) sets the menu **Title** and **Tagline**, the menu
+  **Logo** and the "Presented by" **Mark**, and the **Bird skins** gallery: up to 12 brand images.
+  **Every run the bird wears one of them at random** (the same one for the whole run); an empty
+  gallery means the default amber bird. Square, transparent PNGs look best. Same rules as Flip Match:
+  browser-only storage, same origin as the game, *Export* / *Import* to copy to the backup device.
 
 ## 3. Staff keys (on the game's start screen)
 
@@ -53,8 +66,9 @@ failed result post retries three times. **Screen stuck? Press `N`. Do not reload
 
 - Smoke-test with a **throwaway CCE Play account**, not a real attendee's — every finished run lands
   on the public board.
-- If rehearsal runs must not show on the night: whoever holds Atlas access (the live URI is the
-  commented-out one in `CCE-Play-Server/.env`) clears them before doors. Runs carry `createdAt`, so
+- If rehearsal runs must not show on the night: press **Reset board** for each game in the CCE Play
+  admin before doors (the rehearsal rows move to "Previous period"). Or, with Atlas access (the live
+  URI is the commented-out one in `CCE-Play-Server/.env`), delete them - runs carry `createdAt`, so
   in the Mongo shell:
   ```js
   db.wpconnect_arcade_runs.deleteMany({ createdAt: { $lt: ISODate("2026-09-25T09:00:00Z") } })
@@ -62,6 +76,10 @@ failed result post retries three times. **Screen stuck? Press `N`. Do not reload
   (09:00 UTC = 5 PM PHT on Sep 25). **This is destructive — check the count with `find(...).count()` first.**
 
 ## 5. If a row must go
+
+**Use the CCE Play admin first** (*WP/Connect → Arcade*): each board has a **Remove run** button per
+row, and **Reset board** starts a fresh period without deleting anything (older periods stay
+browsable from the period dropdown). The Mongo shell is the fallback:
 
 Collections: `wpconnect_arcade_runs` (leaderboard rows) and `wpconnect_arcade_sessions` (one per QR).
 - Pull one run: `db.wpconnect_arcade_runs.deleteOne({ _id: ObjectId("...") })`.
@@ -96,8 +114,8 @@ that key** — re-enter the new one there if it is deployed.
 1. Is there a prize for the gaming block, and does **board rank** or **finishing both stations** earn
    it? (The page copy is hedged until this is answered; the seeder's `--description` flag updates
    the live card text without a Mongo shell.)
-2. Do the stations / the board return for **DigiCon Oct 15–16**? If yes, the board needs a reset
-   window before then (not built).
+2. Do the stations / the board return for **DigiCon Oct 15–16**? If yes: set the new opening window
+   in the admin and press **Reset board** on both boards before doors.
 
 ## Local testing
 

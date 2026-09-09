@@ -51,6 +51,7 @@
   var POLL_MS = 2000;
   var RESULT_ATTEMPTS = 3;
   var RESULT_RETRY_MS = 3000;
+  var CLOSED_RETRY_MS = 60000;   // outside the opening window: ask again each minute
   var LS_KEY = 'wpstation.key';
   var LS_STATION = 'wpstation.station';
 
@@ -174,11 +175,12 @@
     clearClaimIdle();
     claimTimer = setTimeout(function () { api.abandon(); api.begin(); }, CFG.claimIdleMs);
   }
-  function scheduleMintRetry(gen, n) {
+  function scheduleMintRetry(gen, n, fixedMs) {
     clearRetry();
-    var delay = Math.min(30000, 5000 * Math.pow(2, n));
+    var delay = fixedMs || Math.min(30000, 5000 * Math.pow(2, n));
     retryTimer = setTimeout(function () {
-      if (beginGen === gen && state.phase === 'error' && !state.token) api.begin(n + 1);
+      var parked = state.phase === 'error' || state.phase === 'closed';
+      if (beginGen === gen && parked && !state.token) api.begin(n + 1);
     }, delay);
   }
 
@@ -279,6 +281,14 @@
           mountSetup(true);
           return null;
         }
+        if (e && e.status === 423) {
+          // Outside the admin-set opening window. Park with the server's copy
+          // (it carries the opening time) and re-ask every minute, so the
+          // screen opens itself on time with no staff action.
+          setPhase('closed', { error: e.message || 'The arcade is closed right now.' });
+          scheduleMintRetry(gen, n, CLOSED_RETRY_MS);
+          return null;
+        }
         setPhase('error', { error: friendly(e, "Can't reach CCE Play - retrying\u2026") });
         scheduleMintRetry(gen, n);
         return null;
@@ -303,7 +313,7 @@
 
     /**
      * The run is over. stats is whatever this game measures - Flip Match sends
-     * { moves, timeMs, pairs, won }, WP Bird { score, timeMs, won }. The server
+     * { moves, timeMs, pairs, won }, WP Flappy Challenge { score, timeMs, won }. The server
      * rejects a run missing the stat its board ranks on. Retries transient
      * failures; a 409 means an earlier attempt landed and its reply was lost.
      */
@@ -316,7 +326,7 @@
       var attempt = 0;
       function settle(d) {
         // Token fence: the game may already have moved on and minted a new
-        // code (WP Bird returns to its menu ~8 s after game over).
+        // code (WP Flappy Challenge returns to its menu ~8 s after game over).
         if (state.token === t) setPhase('done', { token: '', error: '' });
         return d;
       }
