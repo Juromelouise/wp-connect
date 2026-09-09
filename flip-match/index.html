@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Flip Match</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e30613'/%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='none' stroke='%23fff' stroke-width='4'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Montserrat,Arial Black,sans-serif' font-weight='900' font-style='italic' font-size='32' fill='%23fff'%3E?%3C/text%3E%3C/svg%3E">
+<!-- non-blocking font load: the game runs on system fonts until Montserrat arrives -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap">
+<style>
+  /* ---- WP Gaming deck palette (DigiCon 2026 proposal) ---- */
+  :root {
+    --red: #e30613;
+    --red-bright: #f0101c;
+    --red-deep: #b10000;
+    --red-dark: #7a0000;
+    --amber: #ffb300;
+    --amber-soft: #ffd166;
+    --blue: #1c1fd6;
+    --violet: #6a1bb8;
+    --ink: #0b0b0b;
+    --text: #ffffff;
+    --dim: rgba(255, 255, 255, 0.72);
+    --accent: #ffffff;           /* hover ring / cursor */
+    --glow: var(--amber);        /* matched pair glow */
+    --card-face-bg: #0b0b0b;     /* overridden from the admin's "Card face colour" */
+    --card-back-bg: #b40008;
+    --ok: #4ade80;
+    --warn: #ffb300;
+    --bad: #ffb4b4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    color: var(--text);
+    font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* fluid red gradient with the deck's blue / amber corner blobs */
+  .deck-bg {
+    background:
+      radial-gradient(55% 40% at 100% 0%, rgba(28, 31, 214, 0.85) 0%, rgba(28, 31, 214, 0) 70%),
+      radial-gradient(42% 30% at 0% 100%, rgba(40, 20, 210, 0.85) 0%, rgba(40, 20, 210, 0) 70%),
+      radial-gradient(50% 32% at 100% 100%, rgba(255, 179, 0, 0.95) 0%, rgba(255, 179, 0, 0) 65%),
+      radial-gradient(30% 22% at 0% 0%, rgba(255, 140, 0, 0.6) 0%, rgba(255, 140, 0, 0) 70%),
+      linear-gradient(165deg, var(--red-bright) 0%, #d40009 40%, var(--red-deep) 100%);
+  }
+
+  /* Portrait-fit: a 9:16 stage that fills a portrait TV and letterboxes
+     elsewhere. font-size is the shared UI scale unit (set from the real pixel
+     width in JS); every size below is in em so the whole UI scales together. */
+  #stage {
+    position: relative;
+    width: min(100vw, calc(100vh * 9 / 16));
+    height: min(100vh, calc(100vw * 16 / 9));
+    font-size: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* deck motifs: crimson waves, thin white outline waves, rings, dot grids
+     (SVG built in JS as --waves) + a soft vignette */
+  #stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 50% 50%, transparent 60%, rgba(60, 0, 0, 0.35) 100%),
+      var(--waves, none) center / cover no-repeat;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: relative;
+    z-index: 2;
+    height: 5.8em;
+    padding: 0 1.4em;
+    display: flex;
+    align-items: center;
+    gap: 1em;
+  }
+  #hudMark {
+    height: 2.5em;
+    max-width: 7em;
+    object-fit: contain;
+    filter: drop-shadow(0 0.15em 0.4em rgba(0, 0, 0, 0.35));
+  }
+  #hudTitle {
+    flex: 1;
+    min-width: 0;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 1.5em;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 0.08em 0.4em rgba(0, 0, 0, 0.35);
+  }
+  .hud-stats {
+    display: flex;
+    gap: 1.6em;
+    background: rgba(11, 11, 11, 0.62);
+    border-radius: 0.6em;
+    padding: 0.35em 1em;
+  }
+  .stat { text-align: center; }
+  .stat-label {
+    font-size: 0.6em;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .stat-value {
+    font-weight: 900;
+    font-style: italic;
+    font-size: 1.6em;
+    line-height: 1.15;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    min-width: 2.6em;
+  }
+
+  /* ---- board ---- */
+  #board {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    padding: 0.5em 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--gap, 0.5em);
+    width: var(--grid-w, auto);
+    max-width: 100%;
+  }
+
+  .card {
+    position: relative;
+    width: var(--card, 6em);
+    height: var(--card, 6em);
+    perspective: 1200px;
+    cursor: pointer;
+    animation: dealIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * var(--deal-ms, 28ms));   /* --deal-ms set per round from TIMING */
+  }
+  /* once dealt, drop the animation so the shuffle can drive transform directly */
+  .card.is-dealt { animation: none; }
+  @keyframes dealIn {
+    from { opacity: 0; transform: translateY(1em) scale(0.85); }
+    to   { opacity: 1; transform: none; }
+  }
+  .card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
+  }
+  .card.is-flipped .card-inner { transform: rotateY(180deg); }
+  @media (hover: hover) {
+    .card:not(.is-flipped):hover .card-inner { transform: translateY(-3%) rotateY(0deg); }
+  }
+
+  .face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  /* radius / clipping live on an inner box, not on the 3D-transformed face
+     (WebKit drops backface-visibility when the transformed box also clips) */
+  .face .clip {
+    width: 100%;
+    height: 100%;
+    border-radius: 9%;
+    overflow: hidden;
+    box-shadow: 0 0.3em 0.9em rgba(60, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.15s;
+  }
+  #grid.is-shuffling .face .clip { box-shadow: 0 0.6em 1.6em rgba(40, 0, 0, 0.6); }
+  .face img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+  .face-back .clip { background: var(--card-back-bg); }
+  .face-back img { object-fit: cover; }
+  .face-front { transform: rotateY(180deg); }
+  /* thin white inset ring so a dark face still reads as a card on the red board */
+  .face-front .clip {
+    background: var(--card-face-bg);
+    box-shadow: inset 0 0 0 0.14em rgba(255, 255, 255, 0.9), 0 0.3em 0.9em rgba(60, 0, 0, 0.5);
+  }
+  .face-front img { object-fit: contain; padding: 8%; }
+
+  /* hand cursor hovering a face-down card */
+  .card.is-hover:not(.is-flipped) .card-inner { transform: translateY(-3%) rotateY(0deg); }
+  .card.is-hover:not(.is-flipped) .face-back .clip {
+    box-shadow:
+      0 0 0 0.16em var(--accent),
+      0 0 1.4em rgba(255, 255, 255, 0.7),
+      0 0.3em 0.9em rgba(60, 0, 0, 0.5);
+  }
+
+  .card.is-matched { pointer-events: none; }
+  .card.is-matched .face-front .clip {
+    box-shadow:
+      inset 0 0 0 0.14em rgba(255, 255, 255, 0.9),
+      0 0 0 0.16em var(--glow),
+      0 0 1.4em rgba(255, 179, 0, 0.8),
+      0 0.3em 0.9em rgba(60, 0, 0, 0.5);
+    animation: matchPop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+  }
+  @keyframes matchPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  /* ---- footer strip: [camera preview] tagline [camera badge] ---- */
+  #footer {
+    position: relative;
+    z-index: 2;
+    height: 6.6em;
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    padding: 0 1.2em;
+  }
+  .footer-side { width: 8.4em; flex: none; }
+  #tagline {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s;
+  }
+  #tagline.is-intro {
+    color: #fff;
+    font-size: 1.15em;
+    letter-spacing: 0.14em;
+    text-shadow: 0 0 0.6em rgba(255, 255, 255, 0.6);
+    animation: introPulse 0.9s ease-in-out infinite;
+  }
+  @keyframes introPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  #camBadge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    font-size: 0.58em;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+    background: rgba(11, 11, 11, 0.62);
+    border-radius: 0.6em;
+    padding: 0.55em 0.9em;
+    width: auto;
+    min-width: 8.4em;
+    justify-self: end;
+  }
+  #camBadge::before {
+    content: '';
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 50%;
+    background: #8b8b8b;
+    box-shadow: 0 0 0.6em currentColor;
+    flex: none;
+  }
+  #camBadge.on { color: var(--ok); }
+  #camBadge.on::before { background: var(--ok); }
+  #camBadge.off { color: var(--bad); }
+  #camBadge.off::before { background: var(--bad); }
+  #camBadge.loading { color: var(--warn); }
+  #camBadge.loading::before { background: var(--warn); animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  /* mirrored webcam preview; sits above the overlay screens so players can
+     line themselves up before the round starts */
+  #camPip {
+    position: absolute;
+    left: 1.2em;
+    bottom: 0.7em;
+    width: 8.4em;
+    height: 6.3em;           /* 4:3, same as the 640x480 capture: no cropping */
+    z-index: 25;
+    border-radius: 0.6em;
+    overflow: hidden;
+    border: 0.12em solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0.3em 1em rgba(60, 0, 0, 0.55);
+    background: #000;
+  }
+  #camPip video, #camPip canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  #camPip video { transform: scaleX(-1); }
+
+  /* ---- hand cursor (dwell ring) ---- */
+  #handCursor {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3.8em;
+    height: 3.8em;
+    margin: -1.9em 0 0 -1.9em;
+    z-index: 26;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .cursor-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.12s;
+  }
+  #handCursor.is-over .cursor-inner { transform: scale(1.15); }
+  .cursor-inner.is-fire { animation: cursorFire 0.3s ease; }
+  @keyframes cursorFire {
+    0%   { transform: scale(1.15); }
+    50%  { transform: scale(1.5); }
+    100% { transform: scale(1); }
+  }
+  #handCursor svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    filter: drop-shadow(0 0 0.3em rgba(255, 255, 255, 0.8));
+  }
+  #handCursor .ring-bg { fill: rgba(11, 11, 11, 0.45); stroke: rgba(255, 255, 255, 0.55); stroke-width: 5; }
+  #handCursor .ring { fill: none; stroke: #fff; stroke-width: 9; stroke-linecap: round; stroke-dasharray: 264; stroke-dashoffset: 264; }
+  #handCursor .dot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.9em;
+    height: 0.9em;
+    margin: -0.45em 0 0 -0.45em;
+    border-radius: 50%;
+    background: var(--red);
+    border: 0.12em solid #fff;
+    box-shadow: 0 0 0.6em rgba(255, 255, 255, 0.8);
+  }
+
+  /* ---- overlay screens ---- */
+  .screen {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2em;
+    animation: fadeIn 0.3s ease both;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .screen-logo {
+    width: 92%;
+    max-height: 28%;
+    object-fit: contain;
+    filter: drop-shadow(0 0.4em 1em rgba(60, 0, 0, 0.45));
+    margin-bottom: 0.6em;
+  }
+  .screen-title {
+    font-weight: 900;
+    font-style: italic;
+    font-size: 3.4em;
+    line-height: 0.95;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0.06em 0.5em rgba(60, 0, 0, 0.45);
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .screen-tagline {
+    margin-top: 0.7em;
+    font-size: 1.05em;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--amber-soft);
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .cta {
+    margin-top: 2em;
+    font-family: inherit;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 1.7em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--red);
+    background: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 0.6em 2.6em;
+    cursor: pointer;
+    box-shadow: 0 0 1.4em rgba(255, 255, 255, 0.55), 0 0.3em 0 rgba(90, 0, 0, 0.45);
+    animation: pulse 1.6s ease-in-out infinite;
+    transition: transform 0.15s;
+  }
+  .cta:active { transform: scale(0.96); animation: none; }
+  .cta.is-hover {
+    animation: none;
+    transform: scale(1.1);
+    box-shadow: 0 0 2.6em rgba(255, 255, 255, 0.95), 0 0.3em 0 rgba(90, 0, 0, 0.45);
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 1.2em rgba(255, 255, 255, 0.45), 0 0.3em 0 rgba(90, 0, 0, 0.45); }
+    50%      { transform: scale(1.05); box-shadow: 0 0 2.2em rgba(255, 255, 255, 0.9), 0 0.3em 0 rgba(90, 0, 0, 0.45); }
+  }
+  .screen-hint {
+    margin-top: 1.6em;
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+    max-width: 90%;
+    line-height: 1.6;
+  }
+  #startScreen { cursor: pointer; }
+  .presented {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1.6em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7em;
+    font-size: 0.62em;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .presented img {
+    height: 2.4em;
+    max-width: 8em;
+    object-fit: contain;
+    filter: drop-shadow(0 0.15em 0.4em rgba(60, 0, 0, 0.4));
+  }
+  #resultScreen {
+    /* translucent so the finished board glows behind the result */
+    background: radial-gradient(circle at 50% 35%, rgba(150, 0, 8, 0.9) 0%, rgba(80, 0, 0, 0.94) 70%);
+  }
+
+  .result-kicker {
+    font-weight: 900;
+    font-style: italic;
+    font-size: 3.2em;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 0.4em rgba(255, 255, 255, 0.35), 0 0.06em 0.5em rgba(60, 0, 0, 0.5);
+  }
+  .result-stats {
+    display: flex;
+    gap: 2.6em;
+    margin-top: 1.4em;
+    background: rgba(11, 11, 11, 0.55);
+    border-radius: 0.8em;
+    padding: 0.6em 1.8em;
+  }
+  .result-stats .stat-value {
+    font-size: 3.2em;
+    min-width: 0;
+    color: #fff;
+  }
+  .result-stats .stat-label { font-size: 0.8em; }
+  #resultBest {
+    margin-top: 1.2em;
+    font-size: 1em;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber-soft);
+    min-height: 1.4em;
+  }
+  #resultBest.is-new { color: var(--amber); text-shadow: 0 0 0.6em rgba(255, 179, 0, 0.7); }
+
+  #loadingScreen {
+    font-weight: 900;
+    font-style: italic;
+    font-size: 1.6em;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    z-index: 40;
+  }
+
+  #confetti {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 30;
+  }
+
+  /* ---------- CCE Play station (see station.js) ---------- */
+  #hudPlayer {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    max-width: 11em;
+    padding: 0.35em 0.8em;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    font-weight: 900;
+    font-size: 0.78em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+  #hudPlayer::before {
+    content: '';
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0.6em var(--ok);
+    flex: none;
+  }
+  #hudPlayerName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #stationPanel {
+    margin-top: 1.6em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9em;
+    max-width: 20em;
+  }
+  #stationQr {
+    width: 11em;
+    padding: 0.7em;
+    border-radius: 0.8em;
+    background: #fff;
+    box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.4);
+    line-height: 0;
+  }
+  /* The encoder emits one canvas pixel per module - never smooth it, phones
+     lock on far faster against crisp edges. */
+  #stationQr canvas {
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+  #stationMsg {
+    font-weight: 800;
+    font-size: 0.95em;
+    line-height: 1.35;
+    letter-spacing: 0.04em;
+    text-align: center;
+    white-space: pre-line;
+    color: var(--text);
+    text-shadow: 0 0.1em 0.5em rgba(0, 0, 0, 0.5);
+  }
+  #stationMsg.is-warn { color: var(--warn); }
+  #stationSave {
+    margin-top: 0.6em;
+    min-height: 1.2em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  #stationSave.is-bad { color: var(--bad); }
+</style>
+</head>
+<body>
+
+<div id="stage" class="deck-bg">
+  <div id="hud">
+    <img id="hudMark" alt="" draggable="false">
+    <div id="hudPlayer" class="hidden"><span id="hudPlayerName"></span></div>
+    <div id="hudTitle">FLIP MATCH</div>
+    <div class="hud-stats">
+      <div class="stat">
+        <div class="stat-label" id="hudMovesLabel">MOVES</div>
+        <div class="stat-value" id="hudMoves">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" id="hudTimeLabel">TIME</div>
+        <div class="stat-value" id="hudTime">00:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="board">
+    <div id="grid"></div>
+  </div>
+
+  <div id="footer">
+    <div class="footer-side"></div>
+    <div id="tagline"></div>
+    <div id="camBadge" class="footer-side loading">LOADING…</div>
+  </div>
+
+  <div id="camPip" class="hidden">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <canvas id="camOverlay"></canvas>
+  </div>
+
+  <div id="handCursor" class="hidden">
+    <div class="cursor-inner">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="ring-bg" cx="50" cy="50" r="42"></circle>
+        <circle class="ring" cx="50" cy="50" r="42"></circle>
+      </svg>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <div id="startScreen" class="screen deck-bg hidden">
+    <img id="startLogo" class="screen-logo" alt="" draggable="false">
+    <h1 id="startTitle" class="screen-title">FLIP MATCH</h1>
+    <div id="startTagline" class="screen-tagline"></div>
+    <div id="stationPanel" class="hidden">
+      <div id="stationQr"></div>
+      <div id="stationMsg"></div>
+    </div>
+    <button id="startBtn" class="cta" type="button">START</button>
+    <div id="startHint" class="screen-hint"></div>
+    <div class="presented"><span id="presentedLabel">PRESENTED BY</span><img id="startMark" alt="" draggable="false"></div>
+  </div>
+
+  <div id="resultScreen" class="screen hidden">
+    <div id="resultKicker" class="result-kicker">ALL MATCHED!</div>
+    <div class="result-stats">
+      <div class="stat">
+        <div class="stat-label" id="resultMovesLabel">MOVES</div>
+        <div class="stat-value" id="resultMoves">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" id="resultTimeLabel">TIME</div>
+        <div class="stat-value" id="resultTime">00:00</div>
+      </div>
+    </div>
+    <div id="resultBest"></div>
+    <div id="stationSave" class="screen-hint"></div>
+    <button id="playAgainBtn" class="cta" type="button">PLAY AGAIN</button>
+    <div id="resultCountdown" class="screen-hint"></div>
+  </div>
+
+  <div id="loadingScreen" class="screen deck-bg">LOADING…</div>
+
+  <canvas id="confetti"></canvas>
+</div>
+
+<script src="station.js"></script>
+<script src="store.js"></script>
+<script>
+(function () {
+'use strict';
+
+/* =========================================================================
+   >>> GAME CONFIG — copy, timing, layout and hand-tracking tunables.     <<<
+   >>> Card art, title, tagline and preview time come from admin.html.   <<<
+   >>> Colours are the CSS variables in :root at the top of the page.    <<<
+   URL switches: ?input=mouse (mouse drives the hand cursor, no camera),
+                 ?input=touch (no camera, no cursor), ?dwell=600 (ms),
+                 ?near=0.05 (min hand size = how close a player must stand)
+   ========================================================================= */
+const COPY = {
+  start: 'START',
+  startHintHand: 'HOLD YOUR HAND OVER START · THEN HOVER A CARD TO FLIP IT',
+  startHintTouch: 'TAP TO START · FLIP TWO CARDS, MATCH EVERY PAIR',
+  presentedBy: 'PRESENTED BY',
+  introMemorize: 'MEMORIZE THE PAIRS!',
+  introShuffle: 'SHUFFLING…',
+  introGo: 'GO! FIND THE PAIRS',
+  win: 'ALL MATCHED!',
+  playAgain: 'PLAY AGAIN',
+  moves: 'MOVES',
+  time: 'TIME',
+  newBest: 'NEW BEST TIME!',
+  best: 'BEST {time} · {moves} MOVES',
+  backToStart: 'BACK TO START IN {s}s',
+  cam: {
+    loading: 'LOADING…',
+    camera: 'STARTING CAMERA…',
+    on: 'HAND CONTROL ON',
+    off: 'CAMERA OFF · TAP TO PLAY',
+    blocked: 'CAMERA BLOCKED · TAP TO PLAY',
+    none: 'NO CAMERA · TAP TO PLAY',
+    mouse: 'MOUSE MODE'
+  }
+};
+const TIMING = {
+  FLIP_MS: 450,             // keep in sync with .card-inner transition
+  MISMATCH_MS: 850,         // how long two wrong cards stay face-up
+  RESULT_DELAY_MS: 900,     // pause after the last match before the result screen
+  IDLE_RESET_MS: 30000,     // result screen -> start screen
+  PLAY_IDLE_MS: 90000,      // no tap during play -> start screen (0 = off). Station: a claimed player who
+                            // walks off mid-round must hand the machine back (showStart() voids the session);
+                            // hand-tracking dwell needs the headroom. Root flip-match keeps this at 0.
+  DEAL_STAGGER_MS: 28,      // per-card deal delay (capped so a 64-card deal still finishes in ~DEAL_MAX_MS)
+  DEAL_MAX_MS: 1200,
+  INTRO_FLIP_STAGGER_MS: 22,// wave of face-down flips after the preview (capped by FLIP_WAVE_MAX_MS)
+  FLIP_WAVE_MAX_MS: 1000,
+  SHUFFLE_PASSES: 3,        // visible reshuffles; the last one is the real layout
+  SHUFFLE_PASS_MS: 420,
+  INTRO_GO_MS: 1400         // how long "GO!" stays in the footer
+};
+// board size (columns x rows) comes from the admin: FlipStore.BOARDS / settings.board
+const CONFETTI_COLORS = ['#ffffff', '#ffb300', '#ffd166', '#ff5560', '#1c1fd6', '#c4b5fd'];
+const HAND = {
+  DWELL_MS: 800,         // hold the cursor over a card / button this long to activate it
+  COOLDOWN_MS: 450,      // after an activation, ignore targets briefly
+  LOST_MS: 380,          // no detection for this long = hand gone (dropout tolerance)
+  MIN_SIZE: 0.045,       // palm size as a fraction of the frame; smaller = too far away / bystander
+  MARGIN: 0.14,          // camera frame margin: 0.14..0.86 of the frame maps to the full stage
+  SMOOTH: 0.35,          // cursor smoothing (0..1, higher = snappier, more jitter)
+  MAX_HANDS: 4,
+  VIDEO: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+  VISION_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',
+  MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+};
+// deck motifs drawn over the gradient: crimson waves, white outline waves, rings, dot grids
+const BACKDROP_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1920' preserveAspectRatio='xMidYMid slice'>" +
+  "<path d='M0 0H780C660 160 430 220 300 340S70 480 0 540Z' fill='#8a0000' opacity='.5'/>" +
+  "<path d='M0 1560C260 1440 420 1720 700 1640S980 1500 1080 1560V1920H0Z' fill='#7a0000' opacity='.55'/>" +
+  "<path d='M-40 640C160 590 260 760 520 700S840 560 1120 660' fill='none' stroke='#fff' stroke-opacity='.32' stroke-width='3'/>" +
+  "<path d='M-40 1380C200 1320 330 1490 600 1420S900 1300 1120 1380' fill='none' stroke='#fff' stroke-opacity='.22' stroke-width='3'/>" +
+  "<circle cx='1010' cy='1720' r='190' fill='none' stroke='#fff' stroke-opacity='.35' stroke-width='3'/>" +
+  "<circle cx='1010' cy='1720' r='115' fill='none' stroke='#fff' stroke-opacity='.25' stroke-width='2'/>" +
+  "<circle cx='50' cy='250' r='170' fill='none' stroke='#fff' stroke-opacity='.3' stroke-width='3'/>" +
+  "<g fill='#fff' fill-opacity='.75'>" +
+  "<circle cx='150' cy='600' r='4'/><circle cx='168' cy='600' r='4'/><circle cx='186' cy='600' r='4'/>" +
+  "<circle cx='150' cy='618' r='4'/><circle cx='168' cy='618' r='4'/><circle cx='186' cy='618' r='4'/>" +
+  "<circle cx='150' cy='636' r='4'/><circle cx='168' cy='636' r='4'/><circle cx='186' cy='636' r='4'/>" +
+  "<circle cx='890' cy='1290' r='4'/><circle cx='908' cy='1290' r='4'/><circle cx='926' cy='1290' r='4'/>" +
+  "<circle cx='890' cy='1308' r='4'/><circle cx='908' cy='1308' r='4'/><circle cx='926' cy='1308' r='4'/>" +
+  "<circle cx='890' cy='1326' r='4'/><circle cx='908' cy='1326' r='4'/><circle cx='926' cy='1326' r='4'/>" +
+  "</g></svg>";
+
+const QS = new URLSearchParams(location.search);
+const INPUT_MODE = QS.get('input') === 'mouse' ? 'mouse' : (QS.get('input') === 'touch' ? 'touch' : 'camera');
+if (QS.get('dwell')) HAND.DWELL_MS = Math.max(200, Number(QS.get('dwell')) || HAND.DWELL_MS);
+if (QS.get('near')) HAND.MIN_SIZE = Number(QS.get('near')) || HAND.MIN_SIZE;
+
+/* ---------- dom ---------- */
+const $ = (id) => document.getElementById(id);
+const stage = $('stage');
+const board = $('board');
+const grid = $('grid');
+const hudMark = $('hudMark');
+const hudTitle = $('hudTitle');
+const hudMoves = $('hudMoves');
+const hudTime = $('hudTime');
+const taglineEl = $('tagline');
+const startScreen = $('startScreen');
+const startLogo = $('startLogo');
+const startTitle = $('startTitle');
+const startTagline = $('startTagline');
+const startBtn = $('startBtn');
+const startHint = $('startHint');
+const startMark = $('startMark');
+const resultScreen = $('resultScreen');
+const resultMoves = $('resultMoves');
+const resultTime = $('resultTime');
+const resultBest = $('resultBest');
+const resultCountdown = $('resultCountdown');
+const playAgainBtn = $('playAgainBtn');
+const hudPlayer = $('hudPlayer');
+const hudPlayerName = $('hudPlayerName');
+const stationPanel = $('stationPanel');
+const stationQr = $('stationQr');
+const stationMsg = $('stationMsg');
+const stationSave = $('stationSave');
+const loadingScreen = $('loadingScreen');
+const confettiCanvas = $('confetti');
+const camPip = $('camPip');
+const camVideo = $('camVideo');
+const camOverlay = $('camOverlay');
+const camBadge = $('camBadge');
+const cursorEl = $('handCursor');
+const cursorInner = cursorEl.querySelector('.cursor-inner');
+const cursorRing = cursorEl.querySelector('.ring');
+
+stage.style.setProperty('--waves', 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(BACKDROP_SVG) + '")');
+startBtn.textContent = COPY.start;
+$('presentedLabel').textContent = COPY.presentedBy;
+$('resultKicker').textContent = COPY.win;
+playAgainBtn.textContent = COPY.playAgain;
+$('hudMovesLabel').textContent = COPY.moves;
+$('hudTimeLabel').textContent = COPY.time;
+$('resultMovesLabel').textContent = COPY.moves;
+$('resultTimeLabel').textContent = COPY.time;
+
+/* ---------- state ---------- */
+const state = {
+  phase: 'loading',      // loading | start | intro | play | won
+  deck: [],
+  first: null,
+  second: null,
+  lock: false,
+  moves: 0,
+  matched: 0,
+  startedAt: 0,
+  elapsedMs: 0,
+  timerId: null,
+  mismatchId: null,
+  matchGlowId: null,
+  resultId: null,
+  idleId: null,
+  countdownId: null,
+  playIdleId: null,
+  introIds: new Set(),   // timeouts owned by the reveal/flip/shuffle intro
+  introToken: null,      // identity of the running intro; replaced to cancel it
+  best: null             // { ms, moves, pairs } — this browser session only
+};
+let config = null;
+let assets = null;
+let pendingConfig = null;
+
+const show = (el) => el.classList.remove('hidden');
+const hide = (el) => el.classList.add('hidden');
+const pad2 = (n) => (n < 10 ? '0' : '') + n;
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+}
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+// a cancellable delay: cleared by clearAllTimers, checked via the intro token
+function wait(ms) {
+  return new Promise((resolve) => {
+    const id = setTimeout(() => { state.introIds.delete(id); resolve(); }, ms);
+    state.introIds.add(id);
+  });
+}
+function later(fn, ms) {
+  const id = setTimeout(() => { state.introIds.delete(id); fn(); }, ms);
+  state.introIds.add(id);
+}
+
+/* ---------- config / assets ---------- */
+function applyConfig(cfg) {
+  if (assets) assets.revoke();
+  config = cfg;
+  assets = FlipStore.resolveAssets(cfg);
+  const s = cfg.settings;
+  document.title = s.title;
+  hudTitle.textContent = s.title;
+  startTitle.textContent = s.title;
+  startTagline.textContent = s.tagline;
+  if (!taglineEl.classList.contains('is-intro')) taglineEl.textContent = s.tagline;
+  hudMark.src = assets.mark;
+  startMark.src = assets.mark;
+  startLogo.src = assets.logo;
+  stage.style.setProperty('--card-face-bg', s.faceColor);
+  if (state.best && state.best.key !== bestKey(s)) state.best = null;
+}
+
+// session best is only comparable within the same board + image count
+function bestKey(s) { return s.board + '/' + s.images; }
+function boardInfo() { return FlipStore.boardOf(config.settings.board); }
+
+function applyPendingConfig() {
+  if (!pendingConfig) return;
+  applyConfig(pendingConfig);
+  pendingConfig = null;
+}
+
+let reloading = false;
+async function reloadConfig() {
+  if (reloading) return;
+  reloading = true;
+  try {
+    const cfg = await FlipStore.loadConfig();
+    const current = pendingConfig || config;
+    if (FlipStore.signature(cfg) === FlipStore.signature(current)) return;
+    if (state.phase === 'start') applyConfig(cfg);
+    else pendingConfig = cfg;
+  } catch (e) {
+    /* keep what we have */
+  } finally {
+    reloading = false;
+  }
+}
+
+/* ---------- sizing ---------- */
+function applyStageScale() {
+  const w = stage.clientWidth;
+  if (!w) return;
+  // 16px on a 600px-wide stage, proportional beyond (28.8px at 1080 wide).
+  stage.style.fontSize = ((w / 600) * 16).toFixed(2) + 'px';
+  layoutBoard();
+  sizeConfetti();
+  sizePip();
+}
+
+function layoutBoard() {
+  if (!config) return;
+  const b = boardInfo();
+  const cols = b.cols;
+  const rows = b.rows;
+  const fs = parseFloat(getComputedStyle(stage).fontSize) || 16;
+  const bs = getComputedStyle(board);
+  const W = board.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
+  const H = board.clientHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
+  if (W <= 0 || H <= 0) return;
+  // tighter gutters on dense boards so the cards keep their size
+  const gap = Math.round(fs * (cols >= 7 ? 0.3 : cols >= 5 ? 0.4 : 0.5));
+  const size = Math.max(24, Math.floor(Math.min(
+    (W - gap * (cols - 1)) / cols,
+    (H - gap * (rows - 1)) / rows
+  )));
+  grid.style.setProperty('--card', size + 'px');
+  grid.style.setProperty('--gap', gap + 'px');
+  grid.style.setProperty('--grid-w', (cols * size + (cols - 1) * gap) + 'px');
+}
+
+/* ---------- deck ---------- */
+// The board holds cards/2 pairs; pair p shows brand image (p % images), so the
+// images repeat round-robin to fill the board. Cards are dealt face-up in pair
+// order (A A B B C C …) for the preview; the shuffle then decides the layout.
+// Matching is by IMAGE: any two cards showing the same brand are a pair.
+function renderPreviewDeck() {
+  const pairs = boardInfo().pairs;
+  const images = config.settings.images;
+  grid.innerHTML = '';
+  grid.style.setProperty('--deal-ms', dealStepMs(pairs * 2) + 'ms');
+  const frag = document.createDocumentFragment();
+  let i = 0;
+  for (let p = 0; p < pairs; p++) {
+    const img = p % images;
+    for (let k = 0; k < 2; k++) {
+      const card = document.createElement('div');
+      card.className = 'card is-flipped';
+      card.dataset.img = String(img);
+      card.style.setProperty('--i', i);
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', 'Card ' + (i + 1));
+      card.innerHTML =
+        '<div class="card-inner">' +
+          '<div class="face face-back"><div class="clip"><img alt="" draggable="false"></div></div>' +
+          '<div class="face face-front"><div class="clip"><img alt="" draggable="false"></div></div>' +
+        '</div>';
+      card.querySelector('.face-back img').src = assets.back;
+      card.querySelector('.face-front img').src = assets.faces[img];
+      frag.appendChild(card);
+      i++;
+    }
+  }
+  grid.appendChild(frag);
+}
+
+// per-card stagger, shrunk on big boards so the whole wave stays short
+function dealStepMs(n) { return Math.min(TIMING.DEAL_STAGGER_MS, Math.floor(TIMING.DEAL_MAX_MS / n)); }
+function flipStepMs(n) { return Math.min(TIMING.INTRO_FLIP_STAGGER_MS, Math.floor(TIMING.FLIP_WAVE_MAX_MS / n)); }
+
+// FLIP-animate the cards into a new DOM order
+function animateReorder(order, ms) {
+  const first = new Map();
+  order.forEach((c) => first.set(c, c.getBoundingClientRect()));
+  order.forEach((c) => grid.appendChild(c));
+  order.forEach((c) => {
+    const f = first.get(c);
+    const l = c.getBoundingClientRect();
+    const dx = f.left - l.left;
+    const dy = f.top - l.top;
+    c.style.transition = 'none';
+    c.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+    c.style.zIndex = Math.abs(dx) + Math.abs(dy) > 1 ? '2' : '1';
+  });
+  void grid.offsetWidth;   // commit the inverted positions before transitioning
+  order.forEach((c) => {
+    c.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.3, 0.7, 0.3, 1)';
+    c.style.transform = '';
+  });
+  return wait(ms + 40).then(() => {
+    order.forEach((c) => { c.style.transition = ''; c.style.zIndex = ''; });
+  });
+}
+
+function setIntroLabel(text) {
+  if (text) {
+    taglineEl.textContent = text;
+    taglineEl.classList.add('is-intro');
+  } else {
+    taglineEl.classList.remove('is-intro');
+    if (config) taglineEl.textContent = config.settings.tagline;
+  }
+}
+
+// reveal (face-up) -> flip face-down -> shuffle -> play
+async function runIntro() {
+  const token = {};
+  state.introToken = token;
+  const alive = () => state.introToken === token;
+  const cards = Array.from(grid.children);
+  const n = cards.length;
+  const dealMs = n * dealStepMs(n) + 450;
+  const flipStep = flipStepMs(n);
+
+  setIntroLabel(COPY.introMemorize);
+  await wait(dealMs + config.settings.previewSec * 1000);
+  if (!alive()) return;
+
+  cards.forEach((c) => c.classList.add('is-dealt'));
+  cards.forEach((c, i) => later(() => c.classList.remove('is-flipped'), i * flipStep));
+  await wait(n * flipStep + TIMING.FLIP_MS + 120);
+  if (!alive()) return;
+
+  setIntroLabel(COPY.introShuffle);
+  grid.classList.add('is-shuffling');
+  for (let pass = 0; pass < TIMING.SHUFFLE_PASSES; pass++) {
+    await animateReorder(shuffle(cards.slice()), TIMING.SHUFFLE_PASS_MS);
+    if (!alive()) return;
+  }
+  grid.classList.remove('is-shuffling');
+
+  state.deck = Array.from(grid.children).map((c) => Number(c.dataset.img));
+  state.phase = 'play';
+  bumpPlayIdle();
+  setIntroLabel(COPY.introGo);
+  await wait(TIMING.INTRO_GO_MS);
+  if (!alive()) return;
+  setIntroLabel(null);
+}
+
+/* ---------- timer / hud ---------- */
+function elapsed() { return state.startedAt ? performance.now() - state.startedAt : 0; }
+function renderTime() { hudTime.textContent = formatTime(state.phase === 'won' ? state.elapsedMs : elapsed()); }
+function renderHud() { hudMoves.textContent = String(state.moves); renderTime(); }
+function startTimer() {
+  state.startedAt = performance.now();
+  state.timerId = setInterval(renderTime, 250);
+}
+function stopTimer() {
+  if (state.timerId) clearInterval(state.timerId);
+  state.timerId = null;
+}
+function clearIdle() {
+  clearTimeout(state.idleId);
+  clearInterval(state.countdownId);
+  state.idleId = state.countdownId = null;
+}
+function clearAllTimers() {
+  stopTimer();
+  clearTimeout(state.mismatchId);
+  clearTimeout(state.matchGlowId);
+  clearTimeout(state.resultId);
+  clearTimeout(state.playIdleId);
+  state.mismatchId = state.matchGlowId = state.resultId = state.playIdleId = null;
+  state.introIds.forEach((id) => clearTimeout(id));
+  state.introIds.clear();
+  state.introToken = null;
+  grid.classList.remove('is-shuffling');
+  clearIdle();
+}
+function bumpPlayIdle() {
+  clearTimeout(state.playIdleId);
+  state.playIdleId = null;
+  if (TIMING.PLAY_IDLE_MS > 0 && state.phase === 'play') {
+    state.playIdleId = setTimeout(showStart, TIMING.PLAY_IDLE_MS);
+  }
+}
+
+/* ---------- CCE Play station ----------
+   The station shows a one-time QR on the start screen; a player scans it from
+   /playlab/wpconnect, which binds the run to their account. Only then does
+   START unlock, and the finished run is posted back for the leaderboard.
+   station.js owns the network and the state machine - this is just the view.
+
+   Deliberate fallback: if the backend is unreachable the booth must not die,
+   so an 'error' phase still lets people play - it just says scores are not
+   being saved. */
+let stationSnapshot = { phase: 'idle' };
+let stationQrUrl = '';
+
+function stationCanPlay() {
+  return stationSnapshot.phase === 'claimed' || stationSnapshot.phase === 'error';
+}
+
+function stationCopy(s) {
+  const where = s.station ? ('STATION ' + s.station) : 'THIS STATION';
+  switch (s.phase) {
+    case 'setup':      return 'WAITING FOR STAFF SETUP…';
+    case 'idle':
+    case 'minting':    return 'GETTING YOUR CODE…';
+    case 'pending':    return 'SCAN TO PLAY · ' + where + '\nPoint your phone camera at the code\nNew to CCE Play? Sign up at cceplay.com first, then scan';
+    case 'claimed':    return "YOU'RE UP" + (s.player && s.player.username ? ', ' + s.player.username.toUpperCase() : '') + ' — PRESS START\nNot you? Ask staff, or the code resets in 2 min';
+    case 'submitting': return 'SAVING YOUR RUN…';
+    case 'done':       return 'SAVED! CHECK THE LEADERBOARD ON CCE PLAY';
+    case 'error':      return 'OFFLINE — YOU CAN STILL PLAY, BUT SCORES WON\u2019T BE SAVED';
+    default:           return '';
+  }
+}
+
+function renderStation(s) {
+  stationSnapshot = s;
+
+  // HUD chip: whose run this is.
+  const named = s.phase === 'claimed' || s.phase === 'submitting' || s.phase === 'done';
+  if (named && s.player && s.player.username) {
+    hudPlayerName.textContent = s.player.username;
+    hudPlayer.classList.remove('hidden');
+  } else {
+    hudPlayer.classList.add('hidden');
+  }
+
+  // Start screen: the QR while nobody has scanned, a greeting once someone has.
+  const showQr = s.phase === 'pending' && !!s.claimUrl;
+  if (showQr && stationQrUrl !== s.claimUrl) {
+    stationQrUrl = s.claimUrl;
+    stationQr.innerHTML = '';
+    const cv = WPStation.qrCanvas(s.claimUrl, 640);
+    if (cv) stationQr.appendChild(cv);
+  } else if (!showQr && stationQrUrl) {
+    stationQrUrl = '';
+    stationQr.innerHTML = '';
+  }
+  stationQr.classList.toggle('hidden', !showQr);
+  stationMsg.textContent = stationCopy(s);
+  stationMsg.classList.toggle('is-warn', s.phase === 'error');
+  stationPanel.classList.remove('hidden');
+  startBtn.classList.toggle('hidden', !stationCanPlay());
+
+  // Result screen: did the run make it to the board?
+  stationSave.textContent =
+    s.phase === 'submitting' ? 'SAVING YOUR RUN…'
+    : s.phase === 'done' ? 'SAVED TO THE LEADERBOARD'
+    : s.phase === 'error' && s.error ? s.error
+    : '';
+  stationSave.classList.toggle('is-bad', s.phase === 'error');
+}
+
+/** Post the finished run. Fire-and-forget: the view follows the state events. */
+function stationFinish() {
+  if (stationSnapshot.phase !== 'claimed') return;
+  WPStation.finish({
+    moves: state.moves,
+    timeMs: Math.round(state.elapsedMs),
+    pairs: boardInfo().pairs,   // board cards / 2 - the difficulty key the leaderboard ranks on
+    won: true
+  });
+}
+
+/* ---------- flow ---------- */
+function showStart() {
+  clearAllTimers();
+  stopConfetti();
+  state.phase = 'start';
+  hide(resultScreen);
+  grid.innerHTML = '';
+  state.deck = [];
+  state.first = state.second = null;
+  state.lock = false;
+  state.moves = 0;
+  state.matched = 0;
+  state.startedAt = 0;
+  state.elapsedMs = 0;
+  applyPendingConfig();
+  setIntroLabel(null);
+  renderHud();
+  updateStartHint();
+  show(startScreen);
+  // Fresh QR for whoever walks up next - the previous session is voided.
+  WPStation.begin();
+}
+
+function startRound() {
+  // The whole start screen is a tap target, so an unclaimed tap must be inert:
+  // re-minting here would swap the QR out from under someone mid-scan. Only a
+  // finished run hands the station on (fresh QR for the next player).
+  if (!stationCanPlay()) {
+    if (stationSnapshot.phase === 'done') showStart();
+    return;
+  }
+  WPStation.started();
+  clearAllTimers();
+  stopConfetti();
+  applyPendingConfig();
+  hide(startScreen);
+  hide(resultScreen);
+  state.phase = 'intro';
+  state.first = state.second = null;
+  state.lock = false;
+  state.moves = 0;
+  state.matched = 0;
+  state.startedAt = 0;
+  state.elapsedMs = 0;
+  state.deck = [];
+  renderPreviewDeck();
+  renderHud();
+  layoutBoard();
+  runIntro();
+}
+
+function onCardTap(card) {
+  if (state.phase !== 'play' || state.lock) return;
+  if (card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
+  bumpPlayIdle();
+  if (!state.startedAt) startTimer();
+  card.classList.add('is-flipped');
+  card.classList.remove('is-hover');
+
+  if (!state.first) {
+    state.first = card;
+    return;
+  }
+
+  state.second = card;
+  state.moves++;
+  state.lock = true;
+  renderHud();
+
+  const a = state.first;
+  const b = state.second;
+  if (a.dataset.img === b.dataset.img) {   // same brand image = a match, whichever copies they are
+    state.matched++;
+    state.first = state.second = null;
+    state.lock = false;
+    // glow once the flip has finished revealing the face
+    state.matchGlowId = setTimeout(() => {
+      a.classList.add('is-matched');
+      b.classList.add('is-matched');
+    }, TIMING.FLIP_MS);
+    if (state.matched === boardInfo().pairs) win();
+  } else {
+    state.mismatchId = setTimeout(() => {
+      a.classList.remove('is-flipped');
+      b.classList.remove('is-flipped');
+      state.first = state.second = null;
+      state.lock = false;
+      state.mismatchId = null;
+    }, TIMING.MISMATCH_MS);
+  }
+}
+
+function win() {
+  state.elapsedMs = elapsed();
+  state.phase = 'won';
+  stopTimer();
+  clearTimeout(state.playIdleId);
+  renderTime();
+  const isBest = !state.best || state.elapsedMs < state.best.ms;
+  if (isBest) state.best = { ms: state.elapsedMs, moves: state.moves, key: bestKey(config.settings) };
+  stationFinish();
+  state.resultId = setTimeout(() => showResult(isBest), TIMING.RESULT_DELAY_MS);
+}
+
+function showResult(isBest) {
+  resultMoves.textContent = String(state.moves);
+  resultTime.textContent = formatTime(state.elapsedMs);
+  resultBest.textContent = isBest
+    ? COPY.newBest
+    : COPY.best.replace('{time}', formatTime(state.best.ms)).replace('{moves}', state.best.moves);
+  resultBest.classList.toggle('is-new', isBest);
+  show(resultScreen);
+  launchConfetti();
+  startIdleCountdown();
+}
+
+function startIdleCountdown() {
+  clearIdle();
+  const deadline = Date.now() + TIMING.IDLE_RESET_MS;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    resultCountdown.textContent = COPY.backToStart.replace('{s}', left);
+  };
+  tick();
+  state.countdownId = setInterval(tick, 500);
+  state.idleId = setTimeout(showStart, TIMING.IDLE_RESET_MS);
+}
+
+function updateStartHint() {
+  const handMode = camStatus === 'on' || INPUT_MODE === 'mouse';
+  startHint.textContent = handMode ? COPY.startHintHand : COPY.startHintTouch;
+}
+
+/* ---------- confetti (own canvas, sized to the stage) ---------- */
+const cctx = confettiCanvas.getContext('2d');
+let confettiRaf = null;
+
+function sizeConfetti() {
+  confettiCanvas.width = stage.clientWidth;
+  confettiCanvas.height = stage.clientHeight;
+}
+
+function stopConfetti() {
+  if (confettiRaf) cancelAnimationFrame(confettiRaf);
+  confettiRaf = null;
+  cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+}
+
+function launchConfetti() {
+  stopConfetti();
+  sizeConfetti();
+  const W = confettiCanvas.width;
+  const H = confettiCanvas.height;
+  const unit = W / 600;
+  const parts = [];
+  for (let i = 0; i < 220; i++) {
+    parts.push({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.7,
+      y: -20 - Math.random() * H * 0.3,
+      w: (6 + Math.random() * 8) * unit,
+      h: (8 + Math.random() * 10) * unit,
+      vx: (Math.random() - 0.5) * 3 * unit,
+      vy: (2.5 + Math.random() * 3.5) * unit,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.25,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)]
+    });
+  }
+  const started = performance.now();
+  const step = (now) => {
+    cctx.clearRect(0, 0, W, H);
+    let alive = false;
+    for (const p of parts) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05 * unit;
+      p.rot += p.vr;
+      if (p.y < H + 30) alive = true;
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      cctx.restore();
+    }
+    if (alive && now - started < 6000) confettiRaf = requestAnimationFrame(step);
+    else stopConfetti();
+  };
+  confettiRaf = requestAnimationFrame(step);
+}
+
+/* =========================================================================
+   HAND TRACKING — webcam + MediaPipe HandLandmarker
+   The nearest hand (biggest palm in frame) drives a cursor on the stage.
+   Holding the cursor over a face-down card, START or PLAY AGAIN for
+   HAND.DWELL_MS activates it. Touch and mouse keep working alongside.
+   ========================================================================= */
+let camStatus = 'loading';   // loading | on | off
+let landmarker = null;
+let camReady = false;
+let lastVideoTime = -1;
+const pipCtx = camOverlay.getContext('2d');
+const RING_LEN = 264;        // 2 * PI * r(42), matches stroke-dasharray in CSS
+
+// rawX/rawY are normalised, already mirrored (0 = left of the stage)
+const hand = { rawX: 0.5, rawY: 0.5, size: 0, lastSeen: -1e9, direct: false, x: 0, y: 0, shown: false, others: [] };
+const dwell = { target: null, since: 0, cooldownUntil: 0, lastFired: null };
+
+function setCamStatus(status, label, reason) {
+  camStatus = status;
+  camBadge.className = 'footer-side ' + status;
+  camBadge.textContent = label;
+  camBadge.title = reason || '';
+  updateStartHint();
+}
+
+function sizePip() {
+  camOverlay.width = Math.max(1, camPip.clientWidth);
+  camOverlay.height = Math.max(1, camPip.clientHeight);
+}
+
+async function initHands() {
+  if (INPUT_MODE === 'mouse') { setCamStatus('off', COPY.cam.mouse); return; }
+  if (INPUT_MODE === 'touch') { setCamStatus('off', COPY.cam.off); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setCamStatus('off', COPY.cam.none, 'getUserMedia is unavailable: the page must be served over https (or localhost)');
+    return;
+  }
+  try {
+    setCamStatus('loading', COPY.cam.loading);
+    const vis = await import(HAND.VISION_URL);
+    const files = await vis.FilesetResolver.forVisionTasks(HAND.VISION_URL + '/wasm');
+    const opts = (delegate) => ({
+      baseOptions: { modelAssetPath: HAND.MODEL_URL, delegate: delegate },
+      runningMode: 'VIDEO',
+      numHands: HAND.MAX_HANDS
+    });
+    try { landmarker = await vis.HandLandmarker.createFromOptions(files, opts('GPU')); }
+    catch (e) { landmarker = await vis.HandLandmarker.createFromOptions(files, opts('CPU')); }
+
+    setCamStatus('loading', COPY.cam.camera);
+    const stream = await navigator.mediaDevices.getUserMedia({ video: HAND.VIDEO, audio: false });
+    camVideo.srcObject = stream;
+    await new Promise((res) => { camVideo.onloadedmetadata = res; });
+    await camVideo.play();
+    camReady = true;
+    show(camPip);
+    sizePip();
+    setCamStatus('on', COPY.cam.on);
+  } catch (e) {
+    console.warn('[Flip Match] Hand control unavailable, touch/mouse only:', e);
+    const name = e && e.name;
+    const label = name === 'NotAllowedError' || name === 'SecurityError' ? COPY.cam.blocked
+      : (name === 'NotFoundError' || name === 'OverconstrainedError' ? COPY.cam.none : COPY.cam.off);
+    setCamStatus('off', label, String((e && e.message) || e));
+    hide(camPip);
+  }
+}
+
+// palm centre + size from the 21 hand landmarks (same heuristic as the CODM kiosk)
+function palmData(lm) {
+  let px = 0, py = 0;
+  [0, 5, 9, 13, 17].forEach((i) => { px += lm[i].x; py += lm[i].y; });
+  px /= 5; py /= 5;
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  return { x: px, y: py, size: Math.max(d(lm[0], lm[9]), d(lm[5], lm[17]) * 1.35) };
+}
+
+function updateHand(now) {
+  if (!landmarker || !camReady || camVideo.readyState < 2) return;
+  if (camVideo.currentTime === lastVideoTime) return;
+  lastVideoTime = camVideo.currentTime;
+  let res = null;
+  try { res = landmarker.detectForVideo(camVideo, now); } catch (e) { return; }
+  hand.others.length = 0;
+  if (!res || !res.landmarks || !res.landmarks.length) return;
+  const all = res.landmarks.map(palmData).sort((a, b) => b.size - a.size);
+  const best = all[0];
+  for (let i = 1; i < all.length; i++) hand.others.push(all[i]);
+  if (best.size < HAND.MIN_SIZE) { hand.others.unshift(best); return; }   // too far away: ignored
+  hand.rawX = 1 - best.x;   // mirror: moving right moves the cursor right
+  hand.rawY = best.y;
+  hand.size = best.size;
+  hand.direct = false;
+  hand.lastSeen = now;
+}
+
+// ?input=mouse: the mouse feeds the same cursor + dwell pipeline (for testing without a webcam)
+if (INPUT_MODE === 'mouse') {
+  stage.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const r = stage.getBoundingClientRect();
+    hand.rawX = (e.clientX - r.left) / r.width;
+    hand.rawY = (e.clientY - r.top) / r.height;
+    hand.direct = true;
+    hand.lastSeen = performance.now();
+  });
+  // test hook: lets an automated check step the cursor loop when the tab is hidden
+  window.FlipMatchDebug = { tick: (now) => updateCursor(now), hand: hand, dwell: dwell };
+}
+
+function mapToStage() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  let nx = hand.rawX, ny = hand.rawY;
+  if (!hand.direct) {
+    nx = (nx - HAND.MARGIN) / (1 - 2 * HAND.MARGIN);
+    ny = (ny - HAND.MARGIN) / (1 - 2 * HAND.MARGIN);
+  }
+  return { x: Math.min(w, Math.max(0, nx * w)), y: Math.min(h, Math.max(0, ny * h)) };
+}
+
+// what the cursor is over, and whether that thing can be activated right now
+function findTarget(x, y) {
+  const r = stage.getBoundingClientRect();
+  const el = document.elementFromPoint(r.left + x, r.top + y);
+  const t = el ? el.closest('.card, #startBtn, #playAgainBtn') : null;
+  if (!t) return { el: null, valid: false };
+  let valid = false;
+  if (t.classList.contains('card')) {
+    valid = state.phase === 'play' && !state.lock &&
+      !t.classList.contains('is-flipped') && !t.classList.contains('is-matched');
+  } else if (t === startBtn) {
+    valid = state.phase === 'start';
+  } else if (t === playAgainBtn) {
+    valid = state.phase === 'won' && !resultScreen.classList.contains('hidden');
+  }
+  return { el: t, valid: valid };
+}
+
+function fireTarget(target) {
+  if (target.classList.contains('card')) onCardTap(target);
+  else startRound();
+  cursorInner.classList.remove('is-fire');
+  void cursorInner.offsetWidth;
+  cursorInner.classList.add('is-fire');
+}
+
+function setDwellTarget(target, now) {
+  if (dwell.target === target) return;
+  if (dwell.target) dwell.target.classList.remove('is-hover');
+  dwell.target = target;
+  dwell.since = now;
+  if (target) target.classList.add('is-hover');
+}
+
+function updateCursor(now) {
+  const present = now - hand.lastSeen < HAND.LOST_MS;
+  if (!present) {
+    if (hand.shown) { hand.shown = false; hide(cursorEl); }
+    setDwellTarget(null, now);
+    dwell.lastFired = null;
+    return;
+  }
+  const p = mapToStage();
+  if (!hand.shown) {
+    hand.shown = true;
+    hand.x = p.x; hand.y = p.y;   // snap on (re)appearance, no easing from a stale spot
+    show(cursorEl);
+  } else {
+    hand.x += (p.x - hand.x) * HAND.SMOOTH;
+    hand.y += (p.y - hand.y) * HAND.SMOOTH;
+  }
+  cursorEl.style.transform = 'translate(' + hand.x.toFixed(1) + 'px,' + hand.y.toFixed(1) + 'px)';
+
+  const found = findTarget(hand.x, hand.y);
+  // a fired target is armed again only after the hand has physically left it,
+  // so a mismatched card that flips back under a resting hand is not re-flipped
+  if (dwell.lastFired && found.el !== dwell.lastFired) dwell.lastFired = null;
+  const target = (found.valid && found.el !== dwell.lastFired && now >= dwell.cooldownUntil) ? found.el : null;
+  setDwellTarget(target, now);
+
+  const progress = target ? Math.min(1, (now - dwell.since) / HAND.DWELL_MS) : 0;
+  cursorRing.style.strokeDashoffset = (RING_LEN * (1 - progress)).toFixed(1);
+  cursorEl.classList.toggle('is-over', !!target);
+
+  if (target && progress >= 1) {
+    setDwellTarget(null, now);
+    dwell.lastFired = target;
+    dwell.cooldownUntil = now + HAND.COOLDOWN_MS;
+    fireTarget(target);
+  }
+}
+
+function drawPip(now) {
+  if (camStatus !== 'on') return;
+  const w = camOverlay.width, h = camOverlay.height;
+  pipCtx.clearRect(0, 0, w, h);
+  const m = HAND.MARGIN;
+  pipCtx.setLineDash([4, 4]);
+  pipCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+  pipCtx.lineWidth = 1;
+  pipCtx.strokeRect(m * w, m * h, (1 - 2 * m) * w, (1 - 2 * m) * h);
+  pipCtx.setLineDash([]);
+  hand.others.forEach((o) => {
+    pipCtx.beginPath();
+    pipCtx.arc((1 - o.x) * w, o.y * h, Math.max(3, w * 0.03), 0, Math.PI * 2);
+    pipCtx.fillStyle = 'rgba(255,255,255,0.45)';
+    pipCtx.fill();
+  });
+  if (now - hand.lastSeen < HAND.LOST_MS) {
+    pipCtx.beginPath();
+    pipCtx.arc(hand.rawX * w, hand.rawY * h, Math.max(5, w * 0.06), 0, Math.PI * 2);
+    pipCtx.strokeStyle = '#ffb300';
+    pipCtx.lineWidth = 3;
+    pipCtx.stroke();
+  }
+}
+
+function frame(now) {
+  updateHand(now);
+  updateCursor(now);
+  drawPip(now);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- input ---------- */
+grid.addEventListener('pointerdown', (e) => {
+  if (!e.isPrimary) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const card = e.target.closest('.card');
+  if (!card) return;
+  e.preventDefault();
+  onCardTap(card);
+});
+startScreen.addEventListener('click', () => { if (state.phase === 'start') startRound(); });
+playAgainBtn.addEventListener('click', () => { if (state.phase === 'won') startRound(); });
+document.addEventListener('keydown', (e) => {
+  // Never steal keystrokes from a text field - the station-setup overlay is
+  // one, and "n" / space typed into the key box must land in the key box.
+  const target = e.target;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  // Staff skip: retire the code on screen and mint a fresh one (a player who
+  // scanned and wandered off must not hold the station). One press = one
+  // fresh code - never on auto-repeat, never as part of a shortcut.
+  if (e.key === 'n' || e.key === 'N') {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (state.phase === 'start') { e.preventDefault(); WPStation.abandon(); WPStation.begin(); }
+    return;
+  }
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (state.phase === 'start') { e.preventDefault(); startRound(); }
+  else if (state.phase === 'won' && !resultScreen.classList.contains('hidden')) { e.preventDefault(); startRound(); }
+});
+
+// kiosk hygiene: no context menu, pinch/zoom, double-tap zoom or text selection
+['contextmenu', 'gesturestart', 'dblclick', 'selectstart'].forEach((type) => {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+});
+
+/* ---------- boot ---------- */
+window.addEventListener('resize', applyStageScale);
+new ResizeObserver(applyStageScale).observe(stage);
+
+(async function boot() {
+  let cfg;
+  try {
+    cfg = await FlipStore.loadConfig();
+  } catch (e) {
+    console.warn('[Flip Match] Storage unavailable; using placeholders.', e);
+    cfg = FlipStore.defaultConfig();
+  }
+  applyConfig(cfg);
+  applyStageScale();
+  hide(loadingScreen);
+  WPStation.configure({ game: 'flip-match', gameLabel: 'FLIP MATCH' });
+  WPStation.on(renderStation);
+  showStart();
+  FlipStore.onUpdated(reloadConfig);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reloadConfig();
+  });
+  requestAnimationFrame(frame);
+  initHands();   // runs in the background; the game is playable by touch meanwhile
+})();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>WP BIRD — WP/Connect × DigiCon 2026</title>
+    <link rel="icon" type="image/png" href="assets/wpg-logo.png" />
+    <!-- Vendored Play-CDN build so the station boots with the venue wifi down. -->
+    <script src="vendor/tailwind-3.4.17.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;0,800;0,900;1,800;1,900&display=swap");
+
+      body {
+        background-color: #12060a;
+        color: white;
+        font-family: "Montserrat", sans-serif;
+        touch-action: none;
+        /* Prevent scroll on touch */
+        overflow: hidden;
+      }
+
+      /* Deck headline face: Montserrat 900 italic, same as Flip Match. */
+      .title-font {
+        font-family: "Montserrat", sans-serif;
+        font-weight: 900;
+        font-style: italic;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+      }
+
+      /* Deck accent gradient for the big numbers. */
+      .legion-text {
+        font-family: "Montserrat", sans-serif;
+        font-weight: 900;
+        font-style: italic;
+        background: linear-gradient(to bottom, #ffffff, #ffb300);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0px 0px 6px rgba(255, 179, 0, 0.7));
+      }
+
+      /* Deck frame */
+      .legion-border {
+        box-shadow: 0 0 14px rgba(227, 6, 19, 0.55), inset 0 0 14px rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(255, 255, 255, 0.22);
+      }
+
+      /* White pill CTA, same as the Flip Match START button. */
+      .btn-cta {
+        background: #ffffff;
+        color: #e30613;
+        font-weight: 900;
+        font-style: italic;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-radius: 9999px;
+        transition: all 0.15s ease;
+      }
+      .btn-cta:hover:not(:disabled) {
+        background: #ffffff;
+        box-shadow: 0 0 28px rgba(255, 255, 255, 0.8);
+        transform: scale(1.04);
+      }
+      .btn-cta:active:not(:disabled) {
+        transform: scale(0.96);
+      }
+      .btn-cta:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      canvas {
+        display: block;
+        /* Absolutely positioned so the canvas's intrinsic pixel size never
+           inflates the flex wrapper (which pushed the centered menu off-screen). */
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      /* Portrait-fit: contain a 9:16 stage inside the viewport so it fills a
+         portrait screen (e.g. a rotated 65" TV) and stays centered elsewhere.
+         font-size is the shared UI scale unit — it is set from the real pixel
+         width in JS, and every overlay size below is in em so it scales with it. */
+      #game-container {
+        width: min(100vw, calc(100vh * 9 / 16));
+        height: min(100vh, calc(100vw * 16 / 9));
+        margin: 0 auto;
+        position: relative;
+        font-size: 16px;
+        background: linear-gradient(165deg, #ff4d3d 0%, #e30613 42%, #b10000 100%);
+      }
+
+      /* ---- Responsive overlay UI (scales with #game-container font-size) ---- */
+      #hud {
+        top: 1.6em;
+        padding-left: 1.5em;
+        padding-right: 1.5em;
+      }
+      #hud .hud-label {
+        font-size: 0.9em;
+        margin-bottom: 0.15em;
+      }
+      #scoreDisplay {
+        font-size: 3em;
+      }
+      #goalDisplay {
+        font-size: 2.5em;
+      }
+
+      #startScreen {
+        padding: 1.5em;
+      }
+      #startScreen .menu-logo {
+        width: 62%;
+        max-width: none;
+        margin-bottom: 1.2em;
+      }
+      #startScreen .menu-title {
+        font-size: 4.1em;
+        line-height: 0.95;
+        margin-bottom: 0.3em;
+      }
+      #startScreen .menu-lenny {
+        width: 11em;
+        margin-bottom: 0.45em;
+      }
+      #startScreen .menu-howto {
+        font-size: 2.1em;
+        margin-bottom: 0.25em;
+      }
+      #startScreen .menu-instr {
+        font-size: 1.25em;
+        margin-bottom: 1.2em;
+        max-width: 18em;
+      }
+      #startBtn {
+        font-size: 1.85em;
+        padding: 0.55em 1.6em;
+        width: 82%;
+        max-width: none;
+      }
+
+      #gameOverScreen,
+      #winScreen {
+        width: 84%;
+        max-width: none;
+        padding: 1.6em;
+      }
+      #gameOverScreen .end-title,
+      #winScreen .end-title {
+        font-size: 2.9em;
+        margin-bottom: 0.35em;
+      }
+      #gameOverScreen .end-sub,
+      #winScreen .end-sub {
+        font-size: 1.2em;
+        margin-bottom: 1.1em;
+      }
+      #gameOverScreen .end-label,
+      #winScreen .end-label {
+        font-size: 1.05em;
+        margin-bottom: 0.3em;
+      }
+      #finalScore,
+      #winScore {
+        font-size: 4.2em;
+        margin-bottom: 0.5em;
+      }
+      #gameOverScreen .end-btn,
+      #winScreen .end-btn {
+        font-size: 1.45em;
+        padding: 0.6em 1.4em;
+      }
+
+      #countdownDisplay {
+        font-size: 12em;
+      }
+
+      /* ---------- CCE Play station (see station.js) ---------- */
+      #hudPlayer {
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+        max-width: 10em;
+        padding: 0.3em 0.75em;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        font-weight: 900;
+        font-size: 0.85em;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #fff;
+      }
+      #hudPlayer::before {
+        content: "";
+        width: 0.5em;
+        height: 0.5em;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 0.6em #4ade80;
+        flex: none;
+      }
+      #hudPlayerName {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #stationPanel {
+        margin-top: 1.1em;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.8em;
+        max-width: 20em;
+      }
+      #stationQr {
+        width: 10em;
+        padding: 0.65em;
+        border-radius: 0.8em;
+        background: #fff;
+        box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.45);
+        line-height: 0;
+      }
+      /* The encoder emits one canvas pixel per module - never smooth it,
+         phones lock on far faster against crisp edges. */
+      #stationQr canvas {
+        width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+      }
+      #stationMsg {
+        font-weight: 800;
+        font-size: 1.05em;
+        line-height: 1.35;
+        letter-spacing: 0.04em;
+        text-align: center;
+        white-space: pre-line;
+        color: #fff;
+        text-shadow: 0 0.1em 0.5em rgba(0, 0, 0, 0.55);
+      }
+      #stationMsg.is-warn { color: #ffb300; }
+      #stationSave {
+        min-height: 1.2em;
+        margin-bottom: 0.5em;
+        font-size: 1em;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: #fff;
+      }
+      #stationSave.is-bad { color: #ffb4b4; }
+
+      /* Goal milestone banner - the run does NOT stop here (see GOAL_SCORE). */
+      #goalBanner {
+        font-size: 2.6em;
+        text-shadow: 0 0 0.5em rgba(255, 179, 0, 0.8);
+      }
+    </style>
+  </head>
+
+  <body class="flex items-center justify-center w-screen h-screen">
+    <div
+      id="game-container"
+      class="w-full shadow-2xl legion-border rounded-xl overflow-hidden flex flex-col"
+    >
+      <!-- Canvas wrapper -->
+      <div class="relative flex-grow">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- UI Overlay -->
+        <div
+          id="ui-layer"
+          class="absolute inset-0 pointer-events-none flex flex-col items-center justify-center"
+        >
+          <!-- Score, player and goal (playing state) -->
+          <div
+            id="hud"
+            class="absolute top-6 w-full px-6 flex justify-between items-start hidden"
+          >
+            <div class="flex flex-col items-start">
+              <span
+                class="hud-label text-gray-300 font-bold uppercase tracking-wider"
+                >Score</span
+              >
+              <div class="legion-text" id="scoreDisplay">0</div>
+              <div id="hudPlayer" class="hidden"><span id="hudPlayerName"></span></div>
+            </div>
+            <div class="flex flex-col items-end">
+              <span
+                class="hud-label text-gray-300 font-bold uppercase tracking-wider"
+                >Goal</span
+              >
+              <div class="legion-text" id="goalDisplay">30</div>
+            </div>
+          </div>
+
+          <!-- Start Screen -->
+          <div
+            id="startScreen"
+            class="text-center pointer-events-none flex flex-col items-center justify-center w-full h-full"
+          >
+            <img
+              src="assets/plug-play-title.png"
+              alt="WP/Connect Plug and Play"
+              class="menu-logo h-auto"
+            />
+            <h1
+              class="menu-title title-font text-white"
+              style="text-shadow: 0 0 18px rgba(0, 0, 0, 0.45)"
+            >
+              WP BIRD
+            </h1>
+            <h2
+              class="menu-howto title-font"
+              style="color: #ffb300; text-shadow: 0 0 12px rgba(255, 179, 0, 0.5)"
+            >
+              HOW TO PLAY
+            </h2>
+            <p class="menu-instr text-white font-extrabold leading-snug">
+              Tap to fly. Thread every gap and rack up points &mdash; the higher
+              you score, the higher you land on the leaderboard.
+            </p>
+            <div id="stationPanel" class="hidden">
+              <div id="stationQr"></div>
+              <div id="stationMsg"></div>
+            </div>
+            <button
+              id="startBtn"
+              class="btn-cta pointer-events-auto"
+            >
+              Start Game
+            </button>
+          </div>
+
+          <!-- Game Over Screen -->
+          <div
+            id="gameOverScreen"
+            class="text-center p-6 bg-black/85 rounded-2xl border-2 border-[#e30613] shadow-[0_0_30px_rgba(227,6,19,0.5)] backdrop-blur-sm hidden pointer-events-auto w-11/12 max-w-md"
+          >
+            <h2
+              class="end-title title-font"
+              style="color: #ffb300; text-shadow: 0 0 12px rgba(255, 179, 0, 0.5)"
+            >
+              RUN OVER!
+            </h2>
+            <p class="end-sub text-white font-extrabold leading-snug">
+              That is your score locked in.<br />
+              <span style="color: #ffb300">Check the board on CCE Play!</span>
+            </p>
+            <p class="end-label text-gray-300 uppercase font-bold">
+              Final Score
+            </p>
+            <p id="finalScore" class="legion-text">0</p>
+            <div id="stationSave"></div>
+            <button id="restartBtn" class="btn-cta end-btn w-full">
+              Cooldown...
+            </button>
+          </div>
+
+          <!-- Goal milestone banner. The run is ENDLESS: reaching the goal
+               celebrates and play continues, so the leaderboard can rank by
+               score instead of everyone tying at the old win cap. -->
+          <div
+            id="goalBanner"
+            class="hidden absolute inset-x-0 top-1/3 text-center title-font legion-text pointer-events-none z-40"
+          >
+            GOAL SMASHED!
+          </div>
+
+          <!-- Countdown Display -->
+          <div
+            id="countdownDisplay"
+            class="hidden absolute inset-0 flex items-center justify-center text-[10rem] legion-text z-50 transition-transform duration-200 pointer-events-none"
+          >
+            3
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="station.js"></script>
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // UI Elements
+      const startScreen = document.getElementById("startScreen");
+      const gameOverScreen = document.getElementById("gameOverScreen");
+      const goalBanner = document.getElementById("goalBanner");
+      const hud = document.getElementById("hud");
+      const scoreDisplay = document.getElementById("scoreDisplay");
+      const goalDisplay = document.getElementById("goalDisplay");
+      const finalScoreDisplay = document.getElementById("finalScore");
+      const hudPlayer = document.getElementById("hudPlayer");
+      const hudPlayerName = document.getElementById("hudPlayerName");
+      const stationPanel = document.getElementById("stationPanel");
+      const stationQr = document.getElementById("stationQr");
+      const stationMsg = document.getElementById("stationMsg");
+      const stationSave = document.getElementById("stationSave");
+      const startBtn = document.getElementById("startBtn");
+      const restartBtn = document.getElementById("restartBtn");
+      const countdownDisplay = document.getElementById("countdownDisplay");
+      const gameContainer = document.getElementById("game-container");
+
+      // Deck accent, used for particles and the procedurally-drawn bird.
+      const WP_AMBER = "#ffb300";
+      const WP_RED = "#e30613";
+
+      // --- AUDIO SYSTEM ---
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.85;
+      masterGain.connect(audioCtx.destination);
+
+      function initAudio() {
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+      }
+
+      // Schedule a single tone (with optional pitch glide + soft attack/decay).
+      function tone(fStart, fEnd, tStart, dur, vol, wave, glide) {
+        const t = audioCtx.currentTime + tStart;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = wave || "triangle";
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.frequency.setValueAtTime(fStart, t);
+        if (fEnd && fEnd !== fStart) {
+          if (glide === "exp")
+            osc.frequency.exponentialRampToValueAtTime(fEnd, t + dur);
+          else osc.frequency.linearRampToValueAtTime(fEnd, t + dur);
+        }
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur + 0.03);
+      }
+
+      // Short burst of filtered, decaying noise (for the crash impact).
+      function noiseBurst(tStart, dur, vol, cutoff) {
+        const t = audioCtx.currentTime + tStart;
+        const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+        const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++)
+          data[i] = (Math.random() * 2 - 1) * (1 - i / len); // decay to silence
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        const lp = audioCtx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = cutoff || 1200;
+        const g = audioCtx.createGain();
+        g.gain.value = vol;
+        src.connect(lp);
+        lp.connect(g);
+        g.connect(masterGain);
+        src.start(t);
+        src.stop(t + dur);
+      }
+
+      function playSound(type) {
+        if (!audioCtx || audioCtx.state === "suspended") return;
+
+        if (type === "flap") {
+          // Soft, bouncy "hop" + a little air puff
+          tone(500, 340, 0, 0.11, 0.09, "triangle", "exp");
+          noiseBurst(0, 0.05, 0.04, 2200);
+        } else if (type === "score") {
+          // Bright two-note chime (G5 → C6)
+          tone(783.99, 783.99, 0.0, 0.09, 0.11, "triangle");
+          tone(1046.5, 1046.5, 0.06, 0.13, 0.11, "triangle");
+        } else if (type === "crash") {
+          // Soft descending thud (no harsh buzz)
+          tone(200, 55, 0, 0.38, 0.14, "sine", "exp");
+          noiseBurst(0, 0.22, 0.1, 480);
+        } else if (type === "win") {
+          // Rising victory arpeggio (C5 E5 G5 C6) + a final ring
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((f, i) => tone(f, f, i * 0.11, 0.16, 0.11, "triangle"));
+          tone(1046.5, 1046.5, notes.length * 0.11, 0.5, 0.09, "triangle");
+        }
+      }
+
+      // --- LOGICAL GAME SIZE VARIABLES ---
+      let gameWidth = 0;
+      let gameHeight = 0;
+      let S = 1; // scale factor vs the reference design height
+      const REF_H = 900; // reference design height used to tune physics
+
+      // Resize canvas to fit the stage, scale physics/entities/UI to it, and
+      // render crisply on high-DPI / 4K screens.
+      function resizeCanvas() {
+        const wrapper = canvas.parentElement;
+        gameWidth = wrapper.clientWidth;
+        gameHeight = wrapper.clientHeight;
+        if (gameWidth === 0 || gameHeight === 0) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = gameWidth * dpr;
+        canvas.height = gameHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        // Scale factor vs the reference height — keeps the same feel and
+        // proportions on anything from a phone to a portrait 65" TV.
+        S = gameHeight / REF_H;
+
+        // Overlay UI scale unit: 16px on a 600px-wide stage, proportional beyond.
+        gameContainer.style.fontSize = (gameWidth / 600) * 16 + "px";
+
+        // Physics scaled by screen height so the trajectory reads the same at any size.
+        gravity = BASE_GRAVITY * S;
+        terminalVelocity = BASE_TERMINAL * S;
+        flapStrength = BASE_FLAP * S;
+
+        // Entity sizes scaled to the stage.
+        pipeWidth = gameWidth * 0.19;
+        bird.x = gameWidth * 0.24;
+        bird.radius = gameWidth * 0.043;
+      }
+      // Redraw the static (non-playing) frame after a resize
+      function redrawStaticFrame() {
+        if (currentState === "PLAYING" || currentState === "COUNTDOWN") return;
+        ctx.clearRect(0, 0, gameWidth, gameHeight);
+        drawBackground();
+        if (currentState !== "START") bird.draw();
+      }
+
+      function handleResize() {
+        resizeCanvas();
+        redrawStaticFrame();
+      }
+
+      // No raster art: the backdrop, the bird and the tubes are all drawn
+      // procedurally in the deck palette. That is deliberate - the Lenovo /
+      // Legion / EWC art this game started from could not ship on a WP Gaming
+      // station, and placeholder art beats borrowed art.
+      // TODO(organizer): swap the procedural bird for real WP Bird artwork.
+
+      let gameOverCooldown = false;
+      let idleTimer = null;
+      // Wall-clock length of the current run, reported as the board's tie-break.
+      let runStartedAt = 0;
+
+      // Game Constants & Variables
+      // Base physics are tuned for a REF_H-tall stage and scaled by S at runtime.
+      const BASE_GRAVITY = 0.28;
+      const BASE_TERMINAL = 5.6;
+      const BASE_FLAP = -5.3;
+      let gravity = BASE_GRAVITY;
+      let terminalVelocity = BASE_TERMINAL;
+      let flapStrength = BASE_FLAP;
+      let pipeWidth = 80; // set responsively in resizeCanvas()
+
+      let pipeGap = 210;
+      let pipeSpeed = 2;
+      let pipeSpawnRate = 200;
+      let nextPipeFrame = 90;
+
+      let frames = 0;
+      let lastTime = 0;
+      let score = 0;
+      let currentState = "START";
+      let animationId;
+      // The goal is a MILESTONE, not the end of the run: play continues until
+      // the bird crashes, so the leaderboard ranks by how far people actually
+      // got instead of everyone tying at the cap.
+      // TODO(organizer): confirm 20 is the right on-screen goal.
+      const GOAL_SCORE = 20;
+      let goalBannerTimer = null;
+
+      // Entities
+      const bird = {
+        x: 70,
+        y: 0,
+        radius: 16,
+        velocity: 0,
+        rotation: 0,
+
+        draw() {
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.rotation);
+
+          // Procedural bird: amber body, white belly highlight, red beak.
+          const r = this.radius;
+          ctx.shadowBlur = 18;
+          ctx.shadowColor = WP_AMBER;
+          ctx.beginPath();
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          const grad = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.15, 0, 0, r);
+          grad.addColorStop(0, "#ffffff");
+          grad.addColorStop(0.45, WP_AMBER);
+          grad.addColorStop(1, "#c26a00");
+          ctx.fillStyle = grad;
+          ctx.fill();
+          ctx.lineWidth = Math.max(1.5, r * 0.12);
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // Wing.
+          ctx.beginPath();
+          ctx.ellipse(-r * 0.15, r * 0.1, r * 0.55, r * 0.34, -0.3, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fill();
+
+          // Beak.
+          ctx.beginPath();
+          ctx.moveTo(r * 0.75, -r * 0.1);
+          ctx.lineTo(r * 1.5, r * 0.08);
+          ctx.lineTo(r * 0.75, r * 0.3);
+          ctx.closePath();
+          ctx.fillStyle = WP_RED;
+          ctx.fill();
+
+          // Eye.
+          ctx.beginPath();
+          ctx.arc(r * 0.35, -r * 0.35, r * 0.2, 0, Math.PI * 2);
+          ctx.fillStyle = "#12060a";
+          ctx.fill();
+
+          ctx.restore();
+        },
+
+        update(deltaMultiplier) {
+          this.velocity += gravity * deltaMultiplier;
+          if (this.velocity > terminalVelocity)
+            this.velocity = terminalVelocity;
+          this.y += this.velocity * deltaMultiplier;
+
+          this.rotation = Math.min(
+            Math.PI / 4,
+            Math.max(-Math.PI / 4, this.velocity * 0.1)
+          );
+
+          if (this.y + this.radius >= gameHeight) {
+            this.y = gameHeight - this.radius;
+            gameOver("CRASHED!");
+          }
+          if (this.y - this.radius <= 0) {
+            this.y = this.radius;
+            this.velocity = 0;
+          }
+        },
+
+        flap() {
+          this.velocity = flapStrength;
+          playSound("flap"); // Play jump sound!
+          createParticles(this.x, this.y, 8);
+        },
+      };
+
+      // Rounded-rectangle path with per-corner radii [tl, tr, br, bl]
+      // (manual so it works on any browser, not just ones with ctx.roundRect).
+      function pathRoundRect(x, y, w, h, tl, tr, br, bl) {
+        ctx.beginPath();
+        ctx.moveTo(x + tl, y);
+        ctx.lineTo(x + w - tr, y);
+        ctx.arcTo(x + w, y, x + w, y + tr, tr);
+        ctx.lineTo(x + w, y + h - br);
+        ctx.arcTo(x + w, y + h, x + w - br, y + h, br);
+        ctx.lineTo(x + bl, y + h);
+        ctx.arcTo(x, y + h, x, y + h - bl, bl);
+        ctx.lineTo(x, y + tl);
+        ctx.arcTo(x, y, x + tl, y, tl);
+        ctx.closePath();
+      }
+
+      // Glossy deck-red cylinder shading, reused for body and collar.
+      function tubeShade(x, w, stops) {
+        const g = ctx.createLinearGradient(x, 0, x + w, 0);
+        for (const [o, c] of stops) g.addColorStop(o, c);
+        return g;
+      }
+      const BODY_STOPS = [
+        [0.0, "#3d0004"],
+        [0.1, "#9c0009"],
+        [0.2, "#ff5a4a"], // glossy highlight
+        [0.32, "#e30613"],
+        [0.5, "#c00410"],
+        [0.72, "#8d0009"],
+        [0.88, "#5a0005"],
+        [1.0, "#2c0002"],
+      ];
+      const RIM_STOPS = [
+        [0.0, "#4a0206"],
+        [0.1, "#b3000d"],
+        [0.2, "#ff8b7e"], // brighter sheen on the collar
+        [0.34, "#f0202c"],
+        [0.5, "#cf0512"],
+        [0.74, "#8a0009"],
+        [1.0, "#380003"],
+      ];
+
+      // Draw one procedurally-rendered deck tube: a glossy red cylinder with
+      // clean lighting and no seams - always runs to the screen edge.
+      //   dir =  1 → tube fills DOWNWARD from gapY (opening/collar at the top)
+      //   dir = -1 → tube fills UPWARD  from gapY (opening/collar at the bottom)
+      function drawTube(cx, tw, gapY, dir) {
+        const x = cx - tw / 2;
+        const colY = dir === 1 ? gapY : 0;
+        const colH = dir === 1 ? gameHeight - gapY : gapY;
+        if (colH <= 0) return;
+
+        // --- Cylinder body ---
+        ctx.fillStyle = tubeShade(x, tw, BODY_STOPS);
+        ctx.fillRect(x, colY, tw, colH);
+
+        // --- Collar / rim at the gap end (slightly wider, rounded lip) ---
+        const rimH = tw * 0.44;
+        const over = tw * 0.09;
+        const rimW = tw + over * 2;
+        const rimX = cx - rimW / 2;
+        const rimY = dir === 1 ? gapY : gapY - rimH;
+        const rad = Math.min(rimW * 0.16, rimH * 0.5);
+
+        // Shadow the collar casts on the body (drawn first, under the collar).
+        ctx.fillStyle = "rgba(0,0,0,0.32)";
+        const grH = Math.max(2, rimH * 0.14);
+        if (dir === 1) ctx.fillRect(x, gapY + rimH, tw, grH);
+        else ctx.fillRect(x, gapY - rimH - grH, tw, grH);
+
+        // Collar body — round only the outward (gap-facing) corners.
+        ctx.fillStyle = tubeShade(rimX, rimW, RIM_STOPS);
+        if (dir === 1) pathRoundRect(rimX, rimY, rimW, rimH, rad, rad, 0, 0);
+        else pathRoundRect(rimX, rimY, rimW, rimH, 0, 0, rad, rad);
+        ctx.fill();
+
+        // Specular sheen along the collar's outer lip.
+        ctx.fillStyle = "rgba(190,182,255,0.30)";
+        const shH = Math.max(2, rimH * 0.13);
+        const shY = dir === 1 ? rimY + rimH * 0.16 : rimY + rimH * 0.84 - shH;
+        ctx.fillRect(rimX + rad, shY, rimW - 2 * rad, shH);
+      }
+
+      const pipes = {
+        items: [],
+        lastGapCenter: null,
+
+        draw() {
+          for (let i = 0; i < this.items.length; i++) {
+            const p = this.items[i];
+            const tw = pipeWidth;
+            const cx = p.x + pipeWidth / 2;
+            drawTube(cx, tw, p.top, -1); // top tube
+            drawTube(cx, tw, gameHeight - p.bottom, 1); // bottom tube
+          }
+        },
+
+        update(deltaMultiplier) {
+          if (frames >= nextPipeFrame) {
+            nextPipeFrame = frames + Math.floor(pipeSpawnRate);
+            const margin = gameHeight * 0.06;
+            const minCenter = margin + pipeGap / 2;
+            const maxCenter = gameHeight - margin - pipeGap / 2;
+            let center = Math.random() * (maxCenter - minCenter) + minCenter;
+            // Keep consecutive gaps reachable: cap the vertical shift from the
+            // previous gap so the bird never has to climb/dive a full screen.
+            if (this.lastGapCenter !== null) {
+              const maxShift = gameHeight * 0.22;
+              center = Math.min(
+                this.lastGapCenter + maxShift,
+                Math.max(this.lastGapCenter - maxShift, center)
+              );
+              center = Math.min(maxCenter, Math.max(minCenter, center));
+            }
+            this.lastGapCenter = center;
+            let topHeight = center - pipeGap / 2;
+            let bottomHeight = gameHeight - pipeGap - topHeight;
+
+            this.items.push({
+              x: gameWidth,
+              top: topHeight,
+              bottom: bottomHeight,
+              passedBarrier: false,
+            });
+          }
+
+          for (let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            p.x -= pipeSpeed * deltaMultiplier;
+
+            if (
+              bird.x + bird.radius > p.x &&
+              bird.x - bird.radius < p.x + pipeWidth
+            ) {
+              if (
+                bird.y - bird.radius < p.top ||
+                bird.y + bird.radius > gameHeight - p.bottom
+              ) {
+                gameOver("CRASHED!");
+              }
+
+              if (bird.x > p.x + pipeWidth / 2 - pipeWidth * 0.12 && !p.passedBarrier) {
+                p.passedBarrier = true;
+                score++;
+                scoreDisplay.innerText = score;
+                playSound("score"); // Play score sound!
+                createParticles(bird.x, bird.y, 15);
+
+                // Milestone only - the run keeps going (see GOAL_SCORE).
+                if (score === GOAL_SCORE) {
+                  playSound("win");
+                  goalBanner.classList.remove("hidden");
+                  clearTimeout(goalBannerTimer);
+                  goalBannerTimer = setTimeout(
+                    () => goalBanner.classList.add("hidden"),
+                    1600
+                  );
+                }
+              }
+            }
+
+            if (p.x + pipeWidth < 0) {
+              this.items.shift();
+              i--;
+            }
+          }
+        },
+
+        reset() {
+          this.items = [];
+          this.lastGapCenter = null;
+        },
+      };
+
+      let particles = [];
+      function createParticles(x, y, count) {
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 6 * S,
+            vy: (Math.random() - 0.5) * 6 * S,
+            life: 1,
+            decay: Math.random() * 0.05 + 0.02,
+            color: WP_AMBER,
+          });
+        }
+      }
+
+      function drawAndUpdateParticles(deltaMultiplier) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          let p = particles[i];
+          p.x += p.vx * deltaMultiplier;
+          p.y += p.vy * deltaMultiplier;
+          p.life -= p.decay * deltaMultiplier;
+
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3.2 * S, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Deck backdrop: red gradient, amber/blue corner blooms and the white
+      // outline waves from the DigiCon 2026 deck. Drawn, not loaded, so the
+      // station needs no art files and no network.
+      function drawBackground() {
+        // The Tailwind CDN applies layout asynchronously, so the canvas can be
+        // 0x0 on the first frames. Bail out rather than divide by it - the wave
+        // loop's step below is gameWidth/24, which would never advance.
+        if (!(gameWidth > 0) || !(gameHeight > 0)) return;
+        const g = ctx.createLinearGradient(0, 0, gameWidth * 0.4, gameHeight);
+        g.addColorStop(0, "#ff4d3d");
+        g.addColorStop(0.42, "#e30613");
+        g.addColorStop(1, "#8d0009");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, gameWidth, gameHeight);
+
+        const bloom = (cx, cy, r, colour) => {
+          const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+          rg.addColorStop(0, colour);
+          rg.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = rg;
+          ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        };
+        bloom(gameWidth * 0.92, gameHeight * 0.08, gameWidth * 0.5, "rgba(255,255,255,0.16)");
+        bloom(gameWidth * 0.06, gameHeight * 0.94, gameWidth * 0.55, "rgba(255,201,77,0.2)");
+
+        // Slow parallax waves - motion without competing with the tubes.
+        const scroll = (frames * 0.35) % (gameWidth || 1);
+        ctx.strokeStyle = "rgba(255,255,255,0.16)";
+        ctx.lineWidth = Math.max(1.5, gameWidth * 0.004);
+        for (let k = 0; k < 3; k++) {
+          const baseY = gameHeight * (0.62 + k * 0.11);
+          const amp = gameHeight * 0.03;
+          ctx.beginPath();
+          for (let x = -gameWidth; x <= gameWidth * 2; x += gameWidth / 24) {
+            const y = baseY + Math.sin((x + scroll + k * 140) / (gameWidth / 3)) * amp;
+            if (x === -gameWidth) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+
+        // Contrast wash so the tubes and bird stay readable.
+        ctx.fillStyle = "rgba(18, 6, 10, 0.28)";
+        ctx.fillRect(0, 0, gameWidth, gameHeight);
+      }
+
+      function loop(timestamp) {
+        if (!timestamp) timestamp = performance.now();
+        if (!lastTime) lastTime = timestamp;
+        let deltaTime = timestamp - lastTime;
+        lastTime = timestamp;
+
+        if (deltaTime > 100) deltaTime = 100;
+        let deltaMultiplier = deltaTime / 16.666;
+
+        ctx.clearRect(0, 0, gameWidth, gameHeight);
+        drawBackground();
+
+        if (currentState === "PLAYING") {
+          // --- Progressive difficulty (classic-flappy ramp) ---
+          // Driven purely by pipes passed (score) — the further you get toward
+          // the goal, the faster it goes and the tighter the gap.
+          let diff = Math.pow(Math.min(1, score / GOAL_SCORE), 1.2);
+
+          // Horizontal speed scales with the stage; the gap is a fraction of
+          // screen height; spawn spacing stays in frames so pixel spacing
+          // scales with speed automatically.
+          pipeSpeed = (2.0 + 5.5 * diff) * S; // ramps up as you progress
+          pipeGap = gameHeight * (0.19 - 0.07 * diff); // ~0.19H -> ~0.12H
+          pipeSpawnRate = 200 - 120 * diff; // ~200 -> ~80 frames
+
+          pipes.update(deltaMultiplier);
+          bird.update(deltaMultiplier);
+
+          frames += deltaMultiplier;
+        } else if (currentState === "COUNTDOWN") {
+          bird.y = gameHeight / 2 + Math.sin(Date.now() / 200) * 10;
+          bird.rotation = 0;
+        }
+
+        pipes.draw();
+        drawAndUpdateParticles(deltaMultiplier);
+        bird.draw();
+
+        if (currentState !== "GAMEOVER" && currentState !== "START") {
+          animationId = requestAnimationFrame(loop);
+        }
+      }
+
+      function init() {
+        resizeCanvas();
+        bird.y = gameHeight / 2;
+        bird.velocity = 0;
+        bird.rotation = 0;
+        pipes.reset();
+        particles = [];
+        score = 0;
+        frames = 0;
+        lastTime = 0;
+        scoreDisplay.innerText = score;
+        goalDisplay.innerText = GOAL_SCORE;
+
+        // Easy baselines (recomputed each frame while PLAYING)
+        pipeGap = gameHeight * 0.19;
+        pipeSpeed = 2.0 * S;
+        pipeSpawnRate = 200;
+        nextPipeFrame = 90;
+
+        ctx.clearRect(0, 0, gameWidth, gameHeight);
+        drawBackground();
+        // The menu already carries the branding, so skip the canvas bird there.
+        if (currentState !== "START") bird.draw();
+      }
+
+      /* ---------- CCE Play station ----------
+         The station shows a one-time QR on the menu; a player scans it from
+         /playlab/wpconnect, which binds the run to their account. Only then
+         does the run start, and the finished run is posted back for the
+         leaderboard. station.js owns the network and the state machine - this
+         is just the view. Kept deliberately parallel to the Flip Match copy.
+
+         Deliberate fallback: if the backend is unreachable the booth must not
+         die, so an 'error' phase still lets people play - it just says scores
+         are not being saved. */
+      let stationSnapshot = { phase: "idle" };
+      let stationQrUrl = "";
+
+      function stationCanPlay() {
+        return (
+          stationSnapshot.phase === "claimed" || stationSnapshot.phase === "error"
+        );
+      }
+
+      function stationCopy(st) {
+        const where = st.station ? "STATION " + st.station : "THIS STATION";
+        switch (st.phase) {
+          case "setup":
+            return "WAITING FOR STAFF SETUP\u2026";
+          case "idle":
+          case "minting":
+            return "GETTING YOUR CODE\u2026";
+          case "pending":
+            return (
+              "SCAN TO PLAY \u00b7 " + where + "\nPoint your phone camera at the code" +
+              "\nNew to CCE Play? Sign up at cceplay.com first, then scan"
+            );
+          case "claimed":
+            return (
+              "YOU'RE UP" +
+              (st.player && st.player.username
+                ? ", " + st.player.username.toUpperCase()
+                : "") +
+              " \u2014 PRESS START" +
+              "\nNot you? Ask staff, or the code resets in 2 min"
+            );
+          case "submitting":
+            return "SAVING YOUR RUN\u2026";
+          case "done":
+            return "SAVED! CHECK THE LEADERBOARD ON CCE PLAY";
+          case "error":
+            return "OFFLINE \u2014 YOU CAN STILL PLAY, BUT SCORES WON\u2019T BE SAVED";
+          default:
+            return "";
+        }
+      }
+
+      function renderStation(st) {
+        stationSnapshot = st;
+
+        const named =
+          st.phase === "claimed" ||
+          st.phase === "submitting" ||
+          st.phase === "done";
+        if (named && st.player && st.player.username) {
+          hudPlayerName.textContent = st.player.username;
+          hudPlayer.classList.remove("hidden");
+        } else {
+          hudPlayer.classList.add("hidden");
+        }
+
+        const showQr = st.phase === "pending" && !!st.claimUrl;
+        if (showQr && stationQrUrl !== st.claimUrl) {
+          stationQrUrl = st.claimUrl;
+          stationQr.innerHTML = "";
+          const cv = WPStation.qrCanvas(st.claimUrl, 640);
+          if (cv) stationQr.appendChild(cv);
+        } else if (!showQr && stationQrUrl) {
+          stationQrUrl = "";
+          stationQr.innerHTML = "";
+        }
+        stationQr.classList.toggle("hidden", !showQr);
+        stationMsg.textContent = stationCopy(st);
+        stationMsg.classList.toggle("is-warn", st.phase === "error");
+        stationPanel.classList.remove("hidden");
+        startBtn.classList.toggle("hidden", !stationCanPlay());
+
+        stationSave.textContent =
+          st.phase === "submitting"
+            ? "SAVING YOUR RUN\u2026"
+            : st.phase === "done"
+              ? "SAVED TO THE LEADERBOARD"
+              : st.phase === "error" && st.error
+                ? st.error
+                : "";
+        stationSave.classList.toggle("is-bad", st.phase === "error");
+      }
+
+      /** Post the finished run. Fire-and-forget: the view follows the events. */
+      function stationFinish() {
+        if (stationSnapshot.phase !== "claimed") return;
+        WPStation.finish({
+          score: score,
+          timeMs: Math.max(0, Math.round(performance.now() - runStartedAt)),
+          won: score >= GOAL_SCORE,
+        });
+      }
+
+      function showMainMenu() {
+        // The game-over auto-return timer must die here: a player pressing
+        // restart during its countdown already brought us back, and a second
+        // firing would void whatever QR the NEXT player has since scanned.
+        if (idleTimer) {
+          clearInterval(idleTimer);
+          idleTimer = null;
+        }
+        currentState = "START";
+        gameOverScreen.classList.add("hidden");
+        goalBanner.classList.add("hidden");
+        hud.classList.add("hidden");
+        startScreen.classList.remove("hidden");
+        init();
+        // Fresh QR for whoever walks up next - the previous session is voided.
+        WPStation.begin();
+      }
+
+      function startCountdown() {
+        if (currentState === "COUNTDOWN") return;
+        // Nobody has scanned, so this tap is inert - re-minting here would swap
+        // the QR out from under someone mid-scan. Only a finished run hands the
+        // station on to the next player.
+        if (!stationCanPlay()) {
+          if (stationSnapshot.phase === "done") showMainMenu();
+          return;
+        }
+        WPStation.started();
+
+        initAudio(); // Initialize audio context on first interaction
+
+        if (idleTimer) {
+          clearInterval(idleTimer);
+          idleTimer = null;
+        }
+
+        init();
+        currentState = "COUNTDOWN";
+        startScreen.classList.add("hidden");
+        gameOverScreen.classList.add("hidden");
+        hud.classList.remove("hidden");
+        countdownDisplay.classList.remove("hidden");
+
+        if (animationId) cancelAnimationFrame(animationId);
+        loop(performance.now());
+
+        let count = 3;
+        countdownDisplay.innerText = count;
+        countdownDisplay.style.transform = "scale(1.5)";
+        setTimeout(() => (countdownDisplay.style.transform = "scale(1)"), 100);
+
+        let timer = setInterval(() => {
+          count--;
+          if (count > 0) {
+            countdownDisplay.innerText = count;
+            countdownDisplay.style.transform = "scale(1.5)";
+            setTimeout(
+              () => (countdownDisplay.style.transform = "scale(1)"),
+              100
+            );
+          } else {
+            clearInterval(timer);
+            countdownDisplay.classList.add("hidden");
+            startGameAfterCountdown();
+          }
+        }, 1000);
+      }
+
+      function startGameAfterCountdown() {
+        currentState = "PLAYING";
+        runStartedAt = performance.now();
+        bird.flap();
+      }
+
+      function gameOver(reason) {
+        if (currentState === "GAMEOVER") return;
+
+        playSound("crash");
+
+        currentState = "GAMEOVER";
+        hud.classList.add("hidden");
+        goalBanner.classList.add("hidden");
+        gameOverScreen.classList.remove("hidden");
+        finalScoreDisplay.innerText = score;
+        stationFinish();
+
+        canvas.style.transform = "translate(5px, 5px)";
+        setTimeout(
+          () => (canvas.style.transform = "translate(-5px, -5px)"),
+          50
+        );
+        setTimeout(
+          () => (canvas.style.transform = "translate(5px, -5px)"),
+          100
+        );
+        setTimeout(() => (canvas.style.transform = "translate(0, 0)"), 150);
+
+        gameOverCooldown = true;
+        restartBtn.disabled = true;
+        restartBtn.classList.add("opacity-50");
+        let cd = 3;
+        restartBtn.innerText = `Cooldown: ${cd}s`;
+
+        let cdTimer = setInterval(() => {
+          cd--;
+          if (cd > 0) {
+            restartBtn.innerText = `Cooldown: ${cd}s`;
+          } else {
+            clearInterval(cdTimer);
+            gameOverCooldown = false;
+            restartBtn.disabled = false;
+            restartBtn.classList.remove("opacity-50");
+
+            let waitTime = 5;
+            // Hold the screen while the result is still posting so the TV can
+            // show SAVED (or the error) before handing the station on.
+            let saveHold = 0;
+            restartBtn.innerText = `Tap to restart (${waitTime}s)`;
+
+            idleTimer = setInterval(() => {
+              waitTime--;
+              if (waitTime > 0) {
+                restartBtn.innerText = `Tap to restart (${waitTime}s)`;
+              } else if (stationSnapshot.phase === "submitting" && saveHold < 20) {
+                saveHold++;
+                restartBtn.innerText = "Saving your run\u2026";
+              } else {
+                clearInterval(idleTimer);
+                idleTimer = null;
+                showMainMenu();
+              }
+            }, 1000);
+          }
+        }, 1000);
+      }
+
+      // Single flap / start action for classic flappy controls
+      const FLAP_KEYS = ["w", "W"];
+      const START_KEYS = ["w", "W"];
+
+      function tryFlapOrStart() {
+        if (currentState === "PLAYING") {
+          bird.flap();
+        } else if (
+          (currentState === "START" || currentState === "GAMEOVER") &&
+          !gameOverCooldown
+        ) {
+          startCountdown();
+        }
+      }
+
+      // Event Listeners
+      window.addEventListener("keydown", (e) => {
+        // Never steal keystrokes from a text field - the station-setup overlay
+        // is one, and "w" / "n" typed into the key box must land in the box.
+        const target = e.target;
+        if (
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        initAudio();
+
+        // Staff skip: retire the code on screen and mint a fresh one (a player
+        // who scanned and wandered off must not hold the station). One press =
+        // one fresh code - never on auto-repeat, never as part of a shortcut.
+        if (e.key === "n" || e.key === "N") {
+          if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+          if (currentState === "START") {
+            e.preventDefault();
+            WPStation.abandon();
+            WPStation.begin();
+          }
+          return;
+        }
+
+        if (currentState === "PLAYING") {
+          if (FLAP_KEYS.includes(e.key)) {
+            e.preventDefault();
+            bird.flap();
+          }
+        } else if (
+          (currentState === "START" || currentState === "GAMEOVER") &&
+          !gameOverCooldown
+        ) {
+          if (START_KEYS.includes(e.key)) {
+            e.preventDefault();
+            startCountdown();
+          }
+        }
+      });
+
+      // Tap / click anywhere on the play area to flap (or start).
+      canvas.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        initAudio();
+        tryFlapOrStart();
+      });
+
+      startBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        initAudio();
+        if (!gameOverCooldown) startCountdown();
+      });
+
+      restartBtn.addEventListener("click", () => {
+        initAudio();
+        if (!gameOverCooldown) startCountdown();
+      });
+
+      // Wire up resize handling now that all entities are declared, then start.
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("load", handleResize);
+      // The Tailwind CDN applies layout classes asynchronously, so the wrapper
+      // can be 0×0 at parse time; a ResizeObserver (re)sizes as soon as the
+      // container gets real dimensions.
+      const resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(canvas.parentElement);
+
+      // Initial setup
+      WPStation.configure({ game: "wp-bird", gameLabel: "WP BIRD" });
+      WPStation.on(renderStation);
+      init();
+      WPStation.begin();
+    </script>
+  </body>
+</html>
