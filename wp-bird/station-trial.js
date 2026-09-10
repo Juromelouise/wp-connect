@@ -9,7 +9,7 @@
      - one phase, 'trial': START is unlocked, the HUD says FREE PLAY, and a
        finished run is simply dropped - it never reaches the leaderboard
 
-   Use it to try skins, keys and branding, or to let people play for fun
+   Use it to try skins and branding, or to let people play for fun
    without a CCE Play account. The real station is index.html + station.js.
    ========================================================================= */
 (function (global) {

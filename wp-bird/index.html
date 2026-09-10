@@ -1218,9 +1218,6 @@
         // Only the shipped lock-up carries the edge-to-edge squiggles.
         menuLogo.classList.toggle("is-lockup", birdAssets.logo === BirdStore.placeholders.logo());
         menuMark.src = birdAssets.mark;
-        // Admin-set keys: they flap, and they press Start / restart too. The
-        // menu never names them - the booth has one arcade button.
-        flapKeys = s.flapKeys;
         menuInstr.textContent =
           "Tap or press the button to flap. Thread every gap and rack up points \u2014 the higher you score, the higher you land on the leaderboard.";
         skinMode = s.skinMode;
@@ -1672,10 +1669,6 @@
       }
 
       // Single flap / start action for classic flappy controls
-      // Which keys flap (and start / restart) - set in admin.html, applied by
-      // applyBirdConfig. Default is W, the key this game always used.
-      let flapKeys = BirdStore.normalizeSettings({}).flapKeys;
-
       function tryFlapOrStart() {
         if (currentState === "PLAYING") {
           bird.flap();
@@ -1687,10 +1680,30 @@
         }
       }
 
+      // ANY key plays: the booth has one arcade button and it may be wired to
+      // anything, so there is no key list to configure (Sep 2026 decision -
+      // the admin "Flap keys" setting was removed). The only keys left alone
+      // are system ones: modifiers on their own, shortcuts held with Ctrl /
+      // Alt / Meta, Esc, Tab and F1-F12, so staff pressing F11 for fullscreen
+      // or Ctrl+R never starts a run. N is the staff skip (handled below).
+      const SYSTEM_KEYS = new Set([
+        "Shift", "Control", "Alt", "AltGraph", "Meta", "OS",
+        "CapsLock", "NumLock", "ScrollLock",
+        "Tab", "Escape", "ContextMenu", "PrintScreen", "Pause",
+      ]);
+      const FUNCTION_KEY_RE = /^F([1-9]|1[0-2])$/;
+      function isPlayKey(e) {
+        if (!e) return false;
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
+        const key = typeof e.key === "string" ? e.key : "";
+        if (SYSTEM_KEYS.has(key) || FUNCTION_KEY_RE.test(key)) return false;
+        return true;
+      }
+
       // Event Listeners
       window.addEventListener("keydown", (e) => {
         // Never steal keystrokes from a text field - the station-setup overlay
-        // is one, and "w" / "n" typed into the key box must land in the box.
+        // is one, and "n" typed into the key box must land in the box.
         const target = e.target;
         if (
           target &&
@@ -1705,6 +1718,7 @@
         // Staff skip: retire the code on screen and mint a fresh one (a player
         // who scanned and wandered off must not hold the station). One press =
         // one fresh code - never on auto-repeat, never as part of a shortcut.
+        // N never flaps or starts, whatever the state.
         if (e.key === "n" || e.key === "N") {
           if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
           if (currentState === "START") {
@@ -1715,23 +1729,13 @@
           return;
         }
 
+        if (!isPlayKey(e)) return;
         // Holding a key must not auto-repeat into a flap storm.
         if (e.repeat) return;
-        if (currentState === "PLAYING") {
-          if (BirdStore.keys.matchesAny(e, flapKeys)) {
-            e.preventDefault();
-            bird.flap();
-          }
-        } else if (
-          (currentState === "START" || currentState === "GAMEOVER") &&
-          !gameOverCooldown
-        ) {
-          // One arcade button does everything: the flap keys also start.
-          if (BirdStore.keys.matchesAny(e, flapKeys)) {
-            e.preventDefault();
-            startCountdown();
-          }
-        }
+        // Space would scroll the page and Enter would re-press a focused
+        // button; the game owns every play key.
+        e.preventDefault();
+        tryFlapOrStart();
       });
 
       // Tap / click anywhere on the play area to flap (or start).
@@ -1783,7 +1787,8 @@
           reload: loadBirdConfig,
           // Hidden-pane tests: draw the bird on the current frame and say where it is.
           drawBird: () => bird.draw(),
-          keys: () => flapKeys,
+          // isPlayKey({ key, ctrlKey, altKey, metaKey }) -> would this key play?
+          isPlayKey: isPlayKey,
           mode: () => skinMode,
           dash: () => dash.length,
           setState: (s) => { currentState = s; },

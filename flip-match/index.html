@@ -405,7 +405,11 @@
     background: var(--red);
     border: 0.12em solid #fff;
     box-shadow: 0 0 0.6em rgba(255, 255, 255, 0.8);
+    transition: transform 0.12s, background-color 0.12s;
   }
+  /* fist recognised: the dot swells and turns amber so the player knows it registered */
+  #handCursor.is-fist .dot { background: #ffb300; transform: scale(1.5); }
+  #handCursor.is-fist .ring-bg { stroke: rgba(255, 179, 0, 0.85); }
 
   /* ---- overlay screens ---- */
   .screen {
@@ -764,13 +768,15 @@
    >>> GAME CONFIG — copy, timing, layout and hand-tracking tunables.     <<<
    >>> Card art, title, tagline and preview time come from admin.html.   <<<
    >>> Colours are the CSS variables in :root at the top of the page.    <<<
-   URL switches: ?input=mouse (mouse drives the hand cursor, no camera),
-                 ?input=touch (no camera, no cursor), ?dwell=600 (ms),
+   URL switches: ?input=mouse (mouse drives the hand cursor, no camera;
+                 holding the left button = fist), ?input=touch (no camera,
+                 no cursor), ?dwell=600 (ms a fist is held before it fires),
+                 ?curl=1.0 (fist strictness, see HAND.CURL_RATIO),
                  ?near=0.05 (min hand size = how close a player must stand)
    ========================================================================= */
 const COPY = {
   start: 'START',
-  startHintHand: 'HOLD YOUR HAND OVER START · THEN HOVER A CARD TO FLIP IT',
+  startHintHand: 'MAKE A FIST OVER START · THEN FIST OVER A CARD TO FLIP IT',
   startHintTouch: 'TAP TO START · FLIP TWO CARDS, MATCH EVERY PAIR',
   presentedBy: 'PRESENTED BY',
   introMemorize: 'MEMORIZE THE PAIRS!',
@@ -812,13 +818,24 @@ const TIMING = {
 // board size (columns x rows) comes from the admin: FlipStore.BOARDS / settings.board
 const CONFETTI_COLORS = ['#ffffff', '#ffb300', '#ffd166', '#ff5560', '#1c1fd6', '#c4b5fd'];
 const HAND = {
-  DWELL_MS: 800,         // hold the cursor over a card / button this long to activate it
+  DWELL_MS: 500,         // hold a FIST over a card / button this long to activate it
   COOLDOWN_MS: 450,      // after an activation, ignore targets briefly
   LOST_MS: 380,          // no detection for this long = hand gone (dropout tolerance)
   MIN_SIZE: 0.045,       // palm size as a fraction of the frame; smaller = too far away / bystander
   MARGIN: 0.14,          // camera frame margin: 0.14..0.86 of the frame maps to the full stage
   SMOOTH: 0.35,          // cursor smoothing (0..1, higher = snappier, more jitter)
   MAX_HANDS: 4,
+  // The FIST is the trigger (Sep 2026): an open hand only moves the cursor.
+  // A finger counts as curled when its tip sits closer to the wrist than its
+  // middle (PIP) joint does, times CURL_RATIO (raise it to accept a looser
+  // fist, lower it to demand a tighter one). FIST_FINGERS of the four
+  // non-thumb fingers curled = a fist, seen for FIST_ON_FRAMES camera frames
+  // before it counts (a one-frame flicker never fires) and open for
+  // FIST_OFF_FRAMES before it releases.
+  CURL_RATIO: 1.0,
+  FIST_FINGERS: 3,
+  FIST_ON_FRAMES: 3,
+  FIST_OFF_FRAMES: 4,
   VIDEO: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
   VISION_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',
   MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
@@ -846,6 +863,7 @@ const QS = new URLSearchParams(location.search);
 const INPUT_MODE = QS.get('input') === 'mouse' ? 'mouse' : (QS.get('input') === 'touch' ? 'touch' : 'camera');
 if (QS.get('dwell')) HAND.DWELL_MS = Math.max(200, Number(QS.get('dwell')) || HAND.DWELL_MS);
 if (QS.get('near')) HAND.MIN_SIZE = Number(QS.get('near')) || HAND.MIN_SIZE;
+if (QS.get('curl')) HAND.CURL_RATIO = Number(QS.get('curl')) || HAND.CURL_RATIO;
 // Free play (trial.html): no QR, no key, nothing saved. See station-trial.js.
 const TRIAL = QS.has('trial');
 
@@ -1458,8 +1476,11 @@ function launchConfetti() {
 /* =========================================================================
    HAND TRACKING — webcam + MediaPipe HandLandmarker
    The nearest hand (biggest palm in frame) drives a cursor on the stage.
-   Holding the cursor over a face-down card, START or PLAY AGAIN for
-   HAND.DWELL_MS activates it. Touch and mouse keep working alongside.
+   An open hand only points: the card under it lifts, nothing counts.
+   Making a FIST over a face-down card, START or PLAY AGAIN fills the ring
+   over HAND.DWELL_MS and fires it; opening the hand or leaving the target
+   empties the ring. The fist may already be closed when it arrives.
+   Touch keeps working alongside.
    ========================================================================= */
 let camStatus = 'loading';   // loading | on | off
 let landmarker = null;
@@ -1469,8 +1490,11 @@ const pipCtx = camOverlay.getContext('2d');
 const RING_LEN = 264;        // 2 * PI * r(42), matches stroke-dasharray in CSS
 
 // rawX/rawY are normalised, already mirrored (0 = left of the stage)
-const hand = { rawX: 0.5, rawY: 0.5, size: 0, lastSeen: -1e9, direct: false, x: 0, y: 0, shown: false, others: [] };
-const dwell = { target: null, since: 0, cooldownUntil: 0, lastFired: null };
+const hand = { rawX: 0.5, rawY: 0.5, size: 0, lastSeen: -1e9, direct: false, x: 0, y: 0, shown: false, others: [],
+               fist: false, curled: 0 };   // fist = debounced; curled = fingers curled this frame
+const fist = { on: 0, off: 0 };            // consecutive closed / open frames (debounce)
+const hover = { el: null };                // what the cursor is over (lifts the card)
+const dwell = { target: null, since: 0, cooldownUntil: 0, lastFired: null };   // the fist count
 
 function setCamStatus(status, label, reason) {
   camStatus = status;
@@ -1525,13 +1549,42 @@ async function initHands() {
   }
 }
 
-// palm centre + size from the 21 hand landmarks (same heuristic as the CODM kiosk)
+// palm centre + size from the 21 hand landmarks (same heuristic as the CODM kiosk).
+// Wrist + knuckles only, so a fist keeps the same centre and size as an open hand.
 function palmData(lm) {
   let px = 0, py = 0;
   [0, 5, 9, 13, 17].forEach((i) => { px += lm[i].x; py += lm[i].y; });
   px /= 5; py /= 5;
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   return { x: px, y: py, size: Math.max(d(lm[0], lm[9]), d(lm[5], lm[17]) * 1.35) };
+}
+
+// how many of index / middle / ring / pinky are curled: a straight finger's
+// tip is far past its middle joint, a folded one comes back toward the wrist
+const FINGER_JOINTS = [[6, 8], [10, 12], [14, 16], [18, 20]];   // [PIP, TIP] per finger
+function countCurled(lm) {
+  const w = lm[0];
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  let n = 0;
+  FINGER_JOINTS.forEach(([pip, tip]) => { if (d(lm[tip], w) < d(lm[pip], w) * HAND.CURL_RATIO) n++; });
+  return n;
+}
+
+// debounce: a fist has to hold for a few frames to count, and open for a few to let go
+function trackFist(closed) {
+  if (closed) {
+    fist.on++; fist.off = 0;
+    if (fist.on >= HAND.FIST_ON_FRAMES) hand.fist = true;
+  } else {
+    fist.off++; fist.on = 0;
+    if (fist.off >= HAND.FIST_OFF_FRAMES) hand.fist = false;
+  }
+}
+
+function resetFist() {
+  fist.on = 0; fist.off = 0;
+  hand.fist = false;
+  hand.curled = 0;
 }
 
 function updateHand(now) {
@@ -1542,7 +1595,7 @@ function updateHand(now) {
   try { res = landmarker.detectForVideo(camVideo, now); } catch (e) { return; }
   hand.others.length = 0;
   if (!res || !res.landmarks || !res.landmarks.length) return;
-  const all = res.landmarks.map(palmData).sort((a, b) => b.size - a.size);
+  const all = res.landmarks.map((lm, i) => Object.assign(palmData(lm), { i: i })).sort((a, b) => b.size - a.size);
   const best = all[0];
   for (let i = 1; i < all.length; i++) hand.others.push(all[i]);
   if (best.size < HAND.MIN_SIZE) { hand.others.unshift(best); return; }   // too far away: ignored
@@ -1551,9 +1604,13 @@ function updateHand(now) {
   hand.size = best.size;
   hand.direct = false;
   hand.lastSeen = now;
+  hand.curled = countCurled(res.landmarks[best.i]);
+  trackFist(hand.curled >= HAND.FIST_FINGERS);
 }
 
-// ?input=mouse: the mouse feeds the same cursor + dwell pipeline (for testing without a webcam)
+// ?input=mouse: the mouse feeds the same cursor + fist pipeline (for testing without a
+// webcam). Holding the left button is the fist; a still mouse stays "present" (a real
+// hand drops out after LOST_MS, a mouse never does), so a held button can finish a count.
 if (INPUT_MODE === 'mouse') {
   stage.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
@@ -1563,8 +1620,18 @@ if (INPUT_MODE === 'mouse') {
     hand.direct = true;
     hand.lastSeen = performance.now();
   });
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    hand.fist = true;
+  });
+  ['pointerup', 'pointercancel', 'blur'].forEach((type) => {
+    window.addEventListener(type, () => { hand.fist = false; });
+  });
   // test hook: lets an automated check step the cursor loop when the tab is hidden
-  window.FlipMatchDebug = { tick: (now) => updateCursor(now), hand: hand, dwell: dwell, trial: TRIAL };
+  window.FlipMatchDebug = {
+    tick: (now) => updateCursor(now), hand: hand, dwell: dwell, hover: hover, trial: TRIAL,
+    curled: countCurled, trackFist: trackFist, resetFist: resetFist
+  };
 }
 
 function mapToStage() {
@@ -1603,20 +1670,30 @@ function fireTarget(target) {
   cursorInner.classList.add('is-fire');
 }
 
+// the card / button the open hand is pointing at: it lifts, nothing else happens
+function setHoverTarget(el) {
+  if (hover.el === el) return;
+  if (hover.el) hover.el.classList.remove('is-hover');
+  hover.el = el;
+  if (el) el.classList.add('is-hover');
+}
+
+// the fist count: changing target (including to / from nothing) restarts it
 function setDwellTarget(target, now) {
   if (dwell.target === target) return;
-  if (dwell.target) dwell.target.classList.remove('is-hover');
   dwell.target = target;
   dwell.since = now;
-  if (target) target.classList.add('is-hover');
 }
 
 function updateCursor(now) {
-  const present = now - hand.lastSeen < HAND.LOST_MS;
+  const present = hand.direct || now - hand.lastSeen < HAND.LOST_MS;
   if (!present) {
     if (hand.shown) { hand.shown = false; hide(cursorEl); }
+    setHoverTarget(null);
     setDwellTarget(null, now);
     dwell.lastFired = null;
+    resetFist();
+    cursorEl.classList.remove('is-fist');
     return;
   }
   const p = mapToStage();
@@ -1634,12 +1711,17 @@ function updateCursor(now) {
   // a fired target is armed again only after the hand has physically left it,
   // so a mismatched card that flips back under a resting hand is not re-flipped
   if (dwell.lastFired && found.el !== dwell.lastFired) dwell.lastFired = null;
-  const target = (found.valid && found.el !== dwell.lastFired && now >= dwell.cooldownUntil) ? found.el : null;
-  setDwellTarget(target, now);
+  const over = (found.valid && found.el !== dwell.lastFired && now >= dwell.cooldownUntil) ? found.el : null;
+  setHoverTarget(over);
+  // only a fist counts: opening the hand (or leaving the target) empties the
+  // ring, and a fist that arrives already closed starts counting at once
+  setDwellTarget(hand.fist ? over : null, now);
 
+  const target = dwell.target;
   const progress = target ? Math.min(1, (now - dwell.since) / HAND.DWELL_MS) : 0;
   cursorRing.style.strokeDashoffset = (RING_LEN * (1 - progress)).toFixed(1);
-  cursorEl.classList.toggle('is-over', !!target);
+  cursorEl.classList.toggle('is-over', !!over);
+  cursorEl.classList.toggle('is-fist', hand.fist);
 
   if (target && progress >= 1) {
     setDwellTarget(null, now);
@@ -1668,6 +1750,8 @@ function drawPip(now) {
   if (now - hand.lastSeen < HAND.LOST_MS) {
     pipCtx.beginPath();
     pipCtx.arc(hand.rawX * w, hand.rawY * h, Math.max(5, w * 0.06), 0, Math.PI * 2);
+    // a recognised fist fills the marker (handy when tuning ?curl on site)
+    if (hand.fist) { pipCtx.fillStyle = 'rgba(255, 179, 0, 0.55)'; pipCtx.fill(); }
     pipCtx.strokeStyle = '#ffb300';
     pipCtx.lineWidth = 3;
     pipCtx.stroke();
@@ -1682,16 +1766,19 @@ function frame(now) {
 }
 
 /* ---------- input ---------- */
+// In ?input=mouse the mouse IS the hand, so it must not tap straight past the fist gesture.
+const mouseIsHand = (e) => INPUT_MODE === 'mouse' && e.pointerType === 'mouse';
 grid.addEventListener('pointerdown', (e) => {
   if (!e.isPrimary) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (mouseIsHand(e)) return;
   const card = e.target.closest('.card');
   if (!card) return;
   e.preventDefault();
   onCardTap(card);
 });
-startScreen.addEventListener('click', () => { if (state.phase === 'start') startRound(); });
-playAgainBtn.addEventListener('click', () => { if (state.phase === 'won') startRound(); });
+startScreen.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'start') startRound(); });
+playAgainBtn.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'won') startRound(); });
 document.addEventListener('keydown', (e) => {
   // Never steal keystrokes from a text field - the station-setup overlay is
   // one, and "n" / space typed into the key box must land in the key box.

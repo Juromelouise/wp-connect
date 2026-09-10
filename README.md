@@ -25,7 +25,8 @@ progress when the window closes still saves.
   `DeveloperToolsAvailability = 2` under `HKLM\SOFTWARE\Policies\Google\Chrome` (or `...\Microsoft\Edge`).
   The station key sits in that browser's localStorage — treat the PC like it holds the key.
 - **The keyboard stays in the staffer's pocket.** Attendees only need touch (WP Flappy Challenge) or the hand
-  tracker / touch (Flip Match). Every staff key below is a keyboard key on purpose.
+  tracker / touch (Flip Match: an open hand only points, making a **fist** over a card, START or PLAY AGAIN
+  fills the ring for half a second and flips / presses it). Every staff key below is a keyboard key on purpose.
 - On first load the **Station setup** overlay asks for the key: paste `KIOSK_API_KEY` (the same secret
   the LOCK & LOADOUT kiosk uses; it lives in Render's env for the backend). Leave *Station label*
   blank, or type a short name (`FLIP`, `FLAPPY`) — it shows on the TV and on players' phones.
@@ -53,9 +54,9 @@ progress when the window closes still saves.
   trimmed and the logo is fitted into a 512 x 512 square with even padding, so no brand looks bigger
   or smaller on the bird than another (the hit circle never changes anyway). Skins uploaded before this
   rule show a **Make all skins the same size** button - press it, then Save. **Bird wears** picks a
-  random brand each run (default) or one fixed skin. **Flap keys** lists the
-  keyboard keys that flap - and press Start / restart - so an arcade button box wired to one key runs
-  the whole station (default `W`; `N` stays the staff skip). Same rules as Flip Match:
+  random brand each run (default) or one fixed skin. Controls need no setup: **any key** flaps -
+  and presses Start / restart - so an arcade button box wired to anything runs the whole station
+  (`N` stays the staff skip; modifier keys, Esc, Tab and F1-F12 are ignored). Same rules as Flip Match:
   browser-only storage, same origin as the game, *Export* / *Import* to copy to the backup device.
 
 ## 3. Staff keys (on the game's start screen)
@@ -128,10 +129,11 @@ that key** — re-enter the new one there if it is deployed.
 `flip-match/trial.html` and `wp-bird/trial.html` open each game in **free play**: no QR, no station
 key, and nothing is posted to CCE Play - the run is simply dropped (the HUD chip says FREE PLAY and the
 result screen says TRIAL RUN - NOT SAVED). It is the same game file (`index.html?trial=1`) with the
-network script swapped for a stub (`station-trial.js`), so card sets, board size, skins, flap keys and
+network script swapped for a stub (`station-trial.js`), so card sets, board size, skins and
 branding from each `admin.html` all apply. Use it to try a config or to let people play for fun; the
 leaderboard only takes runs from the real station screen. Flip Match's other switches pass through
-(`trial.html?input=touch` for a touch-only trial, `?input=mouse` to drive the hand cursor with a mouse).
+(`trial.html?input=touch` for a touch-only trial, `?input=mouse` to drive the hand cursor with a mouse -
+holding the left button is the fist).
 
 ## Local testing
 
@@ -139,4 +141,6 @@ leaderboard only takes runs from the real station screen. Flip Match's other swi
 python -m http.server 5511 -d WPCONNECT/flip-match
 ```
 then open `http://localhost:5511/?api=http://localhost:8000/api&debug&input=mouse` with the backend running
-locally (`KIOSK_API_KEY` in its `.env`). `?input=mouse` lets the mouse drive Flip Match's hand cursor.
+locally (`KIOSK_API_KEY` in its `.env`). `?input=mouse` lets the mouse drive Flip Match's hand cursor (hold the
+left button = fist). On site, `?curl=1.2` accepts a looser fist and `?curl=0.9` demands a tighter one (default 1.0);
+the amber marker in the camera PIP fills while a fist is recognised.

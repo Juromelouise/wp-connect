@@ -316,31 +316,6 @@
     .bar-actions { margin-left: 0; width: 100%; }
     .bar-actions .btn { flex: 1; }
   }
-  /* flap keys */
-  .keys { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; min-height: 2.4rem; }
-  .key-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    background: var(--panel2);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0.3rem 0.4rem 0.3rem 0.75rem;
-  }
-  .key-chip.is-recording { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(255, 179, 0, 0.25); }
-  .key-chip .kbd {
-    font-family: Consolas, Menlo, monospace;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    background: #000;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.15rem 0.55rem;
-    min-width: 2.2rem;
-    text-align: center;
-  }
-  .key-chip .code { font-size: 0.68rem; color: var(--dim); }
-  .key-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
 </style>
 </head>
 <body>
@@ -387,17 +362,6 @@
   </section>
 
   <section class="panel">
-    <h2>Flap keys</h2>
-    <p class="hint">Keyboard keys that make the bird flap. The same keys also press <strong>Start</strong> on the menu and restart after a run, so one arcade button wired to any of these does everything. Touch and mouse always work too. <strong>N</strong> is reserved for the staff skip on the start screen. Press <strong>Add key</strong>, then hit the key on the keyboard or button box.</p>
-    <div id="keyList" class="keys"></div>
-    <div class="key-actions">
-      <button id="addKeyBtn" class="btn btn-sm btn-primary" type="button">Add key</button>
-      <button id="resetKeysBtn" class="btn btn-sm" type="button">Reset to W</button>
-      <span id="keyHint" class="hint" style="margin: 0;"></span>
-    </div>
-  </section>
-
-  <section class="panel">
     <h2>Bird skins</h2>
     <p class="hint">One image per brand. <strong>Every run the bird wears one of these at random</strong> and keeps it for the whole run; leave the gallery empty for the default bird. <strong>Every upload is made the same size:</strong> transparent margins are trimmed and the logo is fitted into a 512 &times; 512 square with even padding, so a wordmark with whitespace around it lands on the bird exactly as big as a tight square badge. Transparent PNGs look best. Click a tile or drop an image onto it.</p>
     <label class="field" style="max-width: 24rem; margin-bottom: 1rem;">
@@ -427,7 +391,8 @@
       <li>To set up another device: <strong>Export</strong> here, copy the file over, then <strong>Import</strong> it in the admin on that device.</li>
       <li>Images are resized to a maximum of <code>512px</code> and stored as WebP (PNG where WebP is unavailable), keeping transparency.</li>
       <li>The skin is picked <strong>when a run starts</strong>; a run already in progress keeps its bird. Gaps in the gallery are fine - only filled slots are used.</li>
-      <li><strong>Reset to defaults</strong> deletes every uploaded image, the custom title, the flap keys and the bird choice.</li>
+      <li><strong>Controls need no setup:</strong> any key or button flaps and presses Start / restart, so one arcade button wired to anything runs the station. Tap and mouse work too. <strong>N</strong> is the staff skip on the start screen; modifier keys, Esc, Tab and F1-F12 are ignored so staff shortcuts never start a run.</li>
+      <li><strong>Reset to defaults</strong> deletes every uploaded image, the custom title and the bird choice.</li>
     </ul>
   </section>
 </div>
@@ -483,10 +448,6 @@ const skinNote = $('skinNote');
 const refitRow = $('refitRow');
 const refitBtn = $('refitBtn');
 const refitNote = $('refitNote');
-const keyList = $('keyList');
-const addKeyBtn = $('addKeyBtn');
-const resetKeysBtn = $('resetKeysBtn');
-const keyHint = $('keyHint');
 const skinModeSelect = $('skinModeSelect');
 const skinModeNote = $('skinModeNote');
 const brandTiles = $('brandTiles');
@@ -501,7 +462,7 @@ const importInput = $('importInput');
 const toastEl = $('toast');
 
 /* ---------- draft model ---------- */
-let draft = null;             // { settings:{title,flapKeys,skinMode}, images: Map<id,{blob,url,width,height,type}> }
+let draft = null;             // { settings:{title,skinMode}, images: Map<id,{blob,url,width,height,type}> }
 let existingIds = new Set();  // slot ids currently stored in IndexedDB
 let imageOps = new Map();     // slot id -> {blob,width,height} (put) | null (delete), pending since last save
 let baselineSettings = '';
@@ -519,13 +480,9 @@ function isDirty() {
 function settingsOf(s) {
   return {
     title: s.title,
-    flapKeys: (s.flapKeys || []).map((k) => ({ code: k.code, key: k.key, label: k.label })),
     skinMode: s.skinMode || 'random'
   };
 }
-
-// which key chip is being recorded: null = none, -1 = a new key, n = chip n
-let recording = null;
 
 function toast(message, kind) {
   clearTimeout(toastTimer);
@@ -585,7 +542,6 @@ async function loadDraft() {
 /* ---------- render ---------- */
 function renderAll() {
   renderSettings();
-  renderKeys();
   renderSkinTiles();
   renderBrandTiles();
   renderStatus();
@@ -743,84 +699,7 @@ function updateDirtyUI() {
   resetBtn.disabled = !storageOk || busy;
   importBtn.disabled = !storageOk || busy;
   exportBtn.disabled = !storageOk || busy;
-  if (draft) renderKeys();
   if (draft) skinModeSelect.disabled = busy || skinModeSelect.options.length <= 1;
-}
-
-/* ---------- flap keys ---------- */
-function renderKeys() {
-  const keys = draft.settings.flapKeys;
-  keyList.innerHTML = '';
-  keys.forEach((k, i) => {
-    const chip = document.createElement('div');
-    chip.className = 'key-chip' + (recording === i ? ' is-recording' : '');
-    chip.innerHTML =
-      '<span class="kbd"></span><span class="code"></span>' +
-      '<button class="btn btn-sm" type="button" data-act="change">Change</button>' +
-      '<button class="btn btn-sm" type="button" data-act="remove">Remove</button>';
-    chip.querySelector('.kbd').textContent = recording === i ? 'Press a key…' : k.label;
-    chip.querySelector('.code').textContent = k.code || k.key;
-    chip.querySelector('[data-act="change"]').addEventListener('click', () => startRecording(i));
-    chip.querySelector('[data-act="change"]').disabled = busy;
-    const rm = chip.querySelector('[data-act="remove"]');
-    rm.addEventListener('click', () => removeKey(i));
-    rm.disabled = busy || keys.length <= 1;
-    rm.title = keys.length <= 1 ? 'Keep at least one key' : '';
-    keyList.appendChild(chip);
-  });
-  const full = keys.length >= LIMITS.MAX_KEYS;
-  addKeyBtn.textContent = recording === -1 ? 'Press a key… (Esc cancels)' : 'Add key';
-  addKeyBtn.disabled = busy || full;
-  resetKeysBtn.disabled = busy;
-  keyHint.textContent = recording !== null
-    ? 'Press the key on the keyboard or button box now.'
-    : full ? 'Maximum of ' + LIMITS.MAX_KEYS + ' keys.' : '';
-}
-
-function startRecording(i) {
-  if (busy) return;
-  recording = i;
-  renderKeys();
-}
-
-function stopRecording() {
-  recording = null;
-  renderKeys();
-}
-
-function removeKey(i) {
-  if (draft.settings.flapKeys.length <= 1) return;
-  draft.settings.flapKeys.splice(i, 1);
-  recording = null;
-  renderKeys();
-  updateDirtyUI();
-}
-
-function resetKeys() {
-  draft.settings.flapKeys = S.normalizeSettings({}).flapKeys;
-  recording = null;
-  renderKeys();
-  updateDirtyUI();
-}
-
-// Capture phase so the recording wins over the Ctrl+S / Enter handlers.
-function onRecordKey(e) {
-  if (recording === null) return;
-  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(e.key)) return;
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.key === 'Escape') { stopRecording(); return; }
-  const k = S.keys.fromEvent(e);
-  if (!k) { toast('That key is reserved - N is the staff skip on the start screen.', 'error'); return; }
-  const dup = draft.settings.flapKeys.findIndex((x, idx) => idx !== recording && S.keys.same(x, k));
-  if (dup >= 0) { toast('"' + k.label + '" is already in the list.', 'error'); return; }
-  if (recording === -1) draft.settings.flapKeys.push(k);
-  else draft.settings.flapKeys[recording] = k;
-  recording = null;
-  renderKeys();
-  updateDirtyUI();
-  toast('Key set to ' + k.label + ' · remember to Save');
 }
 
 /* ---------- images ---------- */
@@ -1054,14 +933,11 @@ importInput.addEventListener('change', () => {
 saveBtn.addEventListener('click', save);
 resetBtn.addEventListener('click', resetAll);
 refitBtn.addEventListener('click', refitSkins);
-addKeyBtn.addEventListener('click', () => startRecording(-1));
-resetKeysBtn.addEventListener('click', resetKeys);
 skinModeSelect.addEventListener('change', () => {
   draft.settings.skinMode = skinModeSelect.value;
   renderSkinTiles();
   updateDirtyUI();
 });
-window.addEventListener('keydown', onRecordKey, true);
 exportBtn.addEventListener('click', exportAll);
 
 document.addEventListener('keydown', (e) => {

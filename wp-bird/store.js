@@ -37,14 +37,11 @@
     SKIN_SIDE: 512,
     SKIN_PADDING: 0.06,                  // fraction of SKIN_SIDE kept clear on each edge
     TRIM_SCAN_SIDE: 1024,                // alpha scan happens at most at this size
-    TRIM_ALPHA: 8,                       // pixels this transparent or more count as empty
-    MAX_KEYS: 12                         // keyboard keys that flap (arcade button boxes send key codes)
+    TRIM_ALPHA: 8                        // pixels this transparent or more count as empty
   };
 
   var DEFAULTS = {
     title: 'WP FLAPPY CHALLENGE',
-    // Keys that flap (and start / restart a run). W was the hard-coded key.
-    flapKeys: [{ code: 'KeyW', key: 'w', label: 'W' }],
     // Which brand the bird wears: 'random' (a new pick every run) or one
     // skin slot id such as 'skin-2' (always that brand).
     skinMode: 'random'
@@ -81,73 +78,6 @@
     return t.length > max ? t.slice(0, max) : t;
   }
 
-  /* ---------- flap keys ----------
-     A key is stored as the KeyboardEvent's physical `code` (layout-proof, and
-     what arcade button encoders send), plus its `key` for browsers that report
-     no code, plus a label for the admin and the menu. "KeyN" is reserved: it is
-     the staff skip on the start screen. */
-  var RESERVED_CODES = { KeyN: true };
-  var KEY_ID_RE = /^[A-Za-z0-9]{1,32}$/;
-
-  function keyLabelFrom(code, key) {
-    var k = typeof key === 'string' ? key : '';
-    var c = typeof code === 'string' ? code : '';
-    if (k === ' ' || c === 'Space') return 'Space';
-    if (/^Key[A-Z]$/.test(c)) return c.slice(3);
-    if (/^Digit[0-9]$/.test(c)) return c.slice(5);
-    if (/^Numpad/.test(c)) return 'Num ' + c.slice(6);
-    if (/^Arrow/.test(c)) return c.slice(5) + ' arrow';
-    if (k.length === 1) return k.toUpperCase();
-    return k || c || '?';
-  }
-
-  function normalizeKey(raw) {
-    if (!raw || typeof raw !== 'object') return null;
-    var code = typeof raw.code === 'string' && KEY_ID_RE.test(raw.code) ? raw.code : '';
-    var key = typeof raw.key === 'string' ? raw.key.slice(0, 16) : '';
-    if (!code && !key) return null;
-    if (RESERVED_CODES[code] || (!code && key.toLowerCase() === 'n')) return null;
-    var label = cleanText(raw.label, 24, '') || keyLabelFrom(code, key);
-    return { code: code, key: key, label: label };
-  }
-
-  function sameKey(a, b) {
-    if (!a || !b) return false;
-    if (a.code && b.code) return a.code === b.code;
-    return !!a.key && !!b.key && a.key.toLowerCase() === b.key.toLowerCase();
-  }
-
-  function normalizeKeys(list) {
-    var out = [];
-    (Array.isArray(list) ? list : []).forEach(function (raw) {
-      var k = normalizeKey(raw);
-      if (!k) return;
-      for (var i = 0; i < out.length; i++) if (sameKey(out[i], k)) return;
-      if (out.length < LIMITS.MAX_KEYS) out.push(k);
-    });
-    if (out.length) return out;
-    return DEFAULTS.flapKeys.map(function (k) { return { code: k.code, key: k.key, label: k.label }; });
-  }
-
-  function keyFromEvent(e) {
-    if (!e) return null;
-    var code = typeof e.code === 'string' ? e.code : '';
-    var key = typeof e.key === 'string' ? e.key : '';
-    return normalizeKey({ code: code, key: key, label: keyLabelFrom(code, key) });
-  }
-
-  function keyMatches(e, k) {
-    if (!e || !k) return false;
-    if (k.code && typeof e.code === 'string' && e.code) return e.code === k.code;
-    var ek = typeof e.key === 'string' ? e.key : '';
-    return !!k.key && ek.toLowerCase() === k.key.toLowerCase();
-  }
-
-  function keyMatchesAny(e, list) {
-    for (var i = 0; i < (list || []).length; i++) if (keyMatches(e, list[i])) return true;
-    return false;
-  }
-
   // 'random' or a skin slot id; whether that slot actually holds an image is
   // the game's problem (it falls back to random), so an emptied slot never
   // breaks a saved config.
@@ -162,7 +92,8 @@
     var out = {
       version: SCHEMA_VERSION,
       title: cleanText(src.title, LIMITS.TITLE_MAX, DEFAULTS.title),
-      flapKeys: normalizeKeys(src.flapKeys),
+      // A `flapKeys` list in an older record or export is dropped on purpose:
+      // since Sep 2026 ANY key flaps and starts, so there is nothing to set.
       skinMode: normalizeSkinMode(src.skinMode)
     };
     if (Number.isFinite(src.updatedAt)) out.updatedAt = src.updatedAt;
@@ -533,7 +464,6 @@
           exportedAt: now.toISOString(),
           settings: {
             title: cfg.settings.title,
-            flapKeys: cfg.settings.flapKeys,
             skinMode: cfg.settings.skinMode
           },
           images: images
@@ -676,15 +606,6 @@
     defaultConfig: defaultConfig,
     processImageFile: processImageFile,
     isSquareSkin: isSquareSkin,
-    keys: {
-      fromEvent: keyFromEvent,
-      matches: keyMatches,
-      matchesAny: keyMatchesAny,
-      same: sameKey,
-      label: keyLabelFrom,
-      normalize: normalizeKeys,
-      reserved: Object.keys(RESERVED_CODES)
-    },
     measureBlob: measureBlob,
     blobToDataURL: blobToDataURL,
     dataURLToBlob: dataURLToBlob,
