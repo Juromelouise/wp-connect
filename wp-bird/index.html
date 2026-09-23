@@ -68,6 +68,14 @@
       .btn-cta:active:not(:disabled) {
         transform: scale(0.96);
       }
+      /* free trial: a quieter outline button under the QR */
+      #trialBtn {
+        margin-top: 0.8em;
+        font-size: 1.1em;
+        background: transparent;
+        border: 0.14em solid #fff;
+        box-shadow: none;
+      }
       .btn-cta:disabled {
         opacity: 0.5;
         cursor: default;
@@ -484,6 +492,9 @@
             >
               Start Game
             </button>
+            <button id="trialBtn" class="btn-cta pointer-events-auto hidden">
+              Free trial &middot; not saved
+            </button>
             <img
               class="menu-wordmark"
               src="assets/wpc%20x%20digicon.png"
@@ -571,6 +582,7 @@
       const stationMsg = document.getElementById("stationMsg");
       const stationSave = document.getElementById("stationSave");
       const startBtn = document.getElementById("startBtn");
+      const trialBtn = document.getElementById("trialBtn");
       const restartBtn = document.getElementById("restartBtn");
       const countdownDisplay = document.getElementById("countdownDisplay");
       const gameContainer = document.getElementById("game-container");
@@ -1428,6 +1440,9 @@
          are not being saved. */
       let stationSnapshot = { phase: "idle" };
       let stationQrUrl = "";
+      // Trial button on the start screen: play now without scanning. Nothing is
+      // posted, and it ends when someone scans or the menu comes back.
+      let freePlay = false;
 
       function stationCanPlay() {
         return (
@@ -1481,10 +1496,10 @@
           st.phase === "claimed" ||
           st.phase === "submitting" ||
           st.phase === "done";
-        if (named && st.player && st.player.username) {
+        if (named && !freePlay && st.player && st.player.username) {
           hudPlayerName.textContent = st.player.username;
           hudPlayer.classList.remove("hidden");
-        } else if (st.phase === "trial") {
+        } else if (st.phase === "trial" || freePlay) {
           hudPlayerName.textContent = "FREE PLAY";
           hudPlayer.classList.remove("hidden");
         } else {
@@ -1507,9 +1522,10 @@
         stationMsg.classList.toggle("is-warn", st.phase === "error" || st.phase === "closed");
         stationPanel.classList.remove("hidden");
         startBtn.classList.toggle("hidden", !stationCanPlay());
+        trialBtn.classList.toggle("hidden", stationCanPlay() || st.phase === "setup");
 
         stationSave.textContent =
-          st.phase === "trial"
+          st.phase === "trial" || freePlay
             ? "TRIAL RUN \u2014 NOT SAVED"
             : st.phase === "submitting"
             ? "SAVING YOUR RUN\u2026"
@@ -1523,7 +1539,7 @@
 
       /** Post the finished run. Fire-and-forget: the view follows the events. */
       function stationFinish() {
-        if (stationSnapshot.phase !== "claimed") return;
+        if (freePlay || stationSnapshot.phase !== "claimed") return;
         WPStation.finish({
           score: score,
           timeMs: Math.max(0, Math.round(performance.now() - runStartedAt)),
@@ -1540,6 +1556,7 @@
           idleTimer = null;
         }
         currentState = "START";
+        freePlay = false;
         gameOverScreen.classList.add("hidden");
         goalBanner.classList.add("hidden");
         hud.classList.add("hidden");
@@ -1549,16 +1566,25 @@
         WPStation.begin();
       }
 
+      function startTrial() {
+        if (stationCanPlay() || stationSnapshot.phase === "setup") return;
+        freePlay = true;
+        startCountdown();
+      }
+
       function startCountdown() {
         if (currentState === "COUNTDOWN") return;
         // Nobody has scanned, so this tap is inert - re-minting here would swap
         // the QR out from under someone mid-scan. Only a finished run hands the
         // station on to the next player.
-        if (!stationCanPlay()) {
+        // Someone scanned (or the station went offline): their run, not a trial.
+        if (stationCanPlay()) freePlay = false;
+        else if (!freePlay) {
           if (stationSnapshot.phase === "done") showMainMenu();
           return;
         }
-        WPStation.started();
+        if (!freePlay) WPStation.started();
+        renderStation(stationSnapshot);
         pickSkin();
 
         initAudio(); // Initialize audio context on first interaction
@@ -1616,6 +1642,7 @@
         goalBanner.classList.add("hidden");
         gameOverScreen.classList.remove("hidden");
         finalScoreDisplay.innerText = score;
+        if (!TRIAL) endSub.innerHTML = freePlay ? TRIAL_SUB : endSubHtml;
         stationFinish();
 
         canvas.style.transform = "translate(5px, 5px)";
@@ -1751,6 +1778,12 @@
         if (!gameOverCooldown) startCountdown();
       });
 
+      trialBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        initAudio();
+        if (currentState === "START") startTrial();
+      });
+
       restartBtn.addEventListener("click", () => {
         initAudio();
         if (!gameOverCooldown) startCountdown();
@@ -1768,10 +1801,10 @@
       // Initial setup
       WPStation.configure({ game: "wp-bird", gameLabel: "WP FLAPPY" });
       WPStation.on(renderStation);
-      if (TRIAL) {
-        endSub.textContent =
-          "Free play \u2014 this run is not saved. Scan the QR on the real station to get on the board.";
-      }
+      const TRIAL_SUB =
+        "Free play \u2014 this run is not saved. Scan the QR on the real station to get on the board.";
+      const endSubHtml = endSub.innerHTML;
+      if (TRIAL) endSub.textContent = TRIAL_SUB;
       init();
       loadBirdConfig();
       // An admin save in another tab, or the tab coming back, re-reads the set.

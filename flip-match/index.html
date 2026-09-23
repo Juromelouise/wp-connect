@@ -6,10 +6,8 @@
 <title>Flip Match</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e30613'/%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='none' stroke='%23fff' stroke-width='4'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Montserrat,Arial Black,sans-serif' font-weight='900' font-style='italic' font-size='32' fill='%23fff'%3E?%3C/text%3E%3C/svg%3E">
 <!-- non-blocking font load: the game runs on system fonts until Montserrat arrives -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'"
-      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap">
+      href="cdn/fonts/montserrat.css">
 <style>
   /* ---- WP Gaming deck palette (DigiCon 2026 proposal) ---- */
   :root {
@@ -486,6 +484,16 @@
     transform: scale(1.1);
     box-shadow: 0 0 2.6em rgba(255, 255, 255, 0.95), 0 0.3em 0 rgba(90, 0, 0, 0.45);
   }
+  /* free trial: a quieter outline button under START / the QR */
+  #trialBtn {
+    margin-top: 1em;
+    font-size: 1em;
+    color: #fff;
+    background: transparent;
+    border: 0.14em solid #fff;
+    box-shadow: none;
+    animation: none;
+  }
   @keyframes pulse {
     0%, 100% { transform: scale(1); box-shadow: 0 0 1.2em rgba(255, 255, 255, 0.45), 0 0.3em 0 rgba(90, 0, 0, 0.45); }
     50%      { transform: scale(1.05); box-shadow: 0 0 2.2em rgba(255, 255, 255, 0.9), 0 0.3em 0 rgba(90, 0, 0, 0.45); }
@@ -722,6 +730,7 @@
       <div id="stationMsg"></div>
     </div>
     <button id="startBtn" class="cta" type="button">START</button>
+    <button id="trialBtn" class="cta hidden" type="button">FREE TRIAL &middot; NOT SAVED</button>
     <div id="startHint" class="screen-hint"></div>
     <img class="start-wordmark" src="assets/wpc%20x%20digicon.png" alt="WP/Connect x DigiConX" draggable="false">
     <div class="presented"><span id="presentedLabel">PRESENTED BY</span><img id="startMark" alt="" draggable="false"></div>
@@ -837,8 +846,8 @@ const HAND = {
   FIST_ON_FRAMES: 3,
   FIST_OFF_FRAMES: 4,
   VIDEO: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-  VISION_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',
-  MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+  VISION_URL: './cdn/tasks-vision',
+  MODEL_URL: './cdn/models/hand_landmarker.task'
 };
 // deck motifs drawn over the gradient: crimson waves, white outline waves, rings, dot grids
 const BACKDROP_SVG =
@@ -882,6 +891,7 @@ const startLogo = $('startLogo');
 const startTitle = $('startTitle');
 const startTagline = $('startTagline');
 const startBtn = $('startBtn');
+const trialBtn = $('trialBtn');
 const startHint = $('startHint');
 const startMark = $('startMark');
 const resultScreen = $('resultScreen');
@@ -1206,6 +1216,9 @@ function bumpPlayIdle() {
    being saved. */
 let stationSnapshot = { phase: 'idle' };
 let stationQrUrl = '';
+// Trial button on the start screen: play now without scanning. Nothing is posted,
+// and it ends as soon as someone scans or the station goes back to the start screen.
+let freePlay = false;
 
 function stationCanPlay() {
   return stationSnapshot.phase === 'claimed' || stationSnapshot.phase === 'error' ||
@@ -1234,10 +1247,10 @@ function renderStation(s) {
 
   // HUD chip: whose run this is.
   const named = s.phase === 'claimed' || s.phase === 'submitting' || s.phase === 'done';
-  if (named && s.player && s.player.username) {
+  if (named && !freePlay && s.player && s.player.username) {
     hudPlayerName.textContent = s.player.username;
     hudPlayer.classList.remove('hidden');
-  } else if (s.phase === 'trial') {
+  } else if (s.phase === 'trial' || freePlay) {
     hudPlayerName.textContent = 'FREE PLAY';
     hudPlayer.classList.remove('hidden');
   } else {
@@ -1260,20 +1273,21 @@ function renderStation(s) {
   stationMsg.classList.toggle('is-warn', s.phase === 'error' || s.phase === 'closed');
   stationPanel.classList.remove('hidden');
   startBtn.classList.toggle('hidden', !stationCanPlay());
+  trialBtn.classList.toggle('hidden', stationCanPlay() || s.phase === 'setup');
 
   // Result screen: did the run make it to the board?
   stationSave.textContent =
     s.phase === 'submitting' ? 'SAVING YOUR RUN…'
     : s.phase === 'done' ? 'SAVED TO THE LEADERBOARD'
     : s.phase === 'error' && s.error ? s.error
-    : s.phase === 'trial' ? 'TRIAL RUN \u2014 NOT SAVED'
+    : s.phase === 'trial' || freePlay ? 'TRIAL RUN \u2014 NOT SAVED'
     : '';
   stationSave.classList.toggle('is-bad', s.phase === 'error');
 }
 
 /** Post the finished run. Fire-and-forget: the view follows the state events. */
 function stationFinish() {
-  if (stationSnapshot.phase !== 'claimed') return;
+  if (freePlay || stationSnapshot.phase !== 'claimed') return;
   WPStation.finish({
     moves: state.moves,
     timeMs: Math.round(state.elapsedMs),
@@ -1296,6 +1310,7 @@ function showStart() {
   state.matched = 0;
   state.startedAt = 0;
   state.elapsedMs = 0;
+  freePlay = false;
   applyPendingConfig();
   setIntroLabel(null);
   renderHud();
@@ -1305,15 +1320,24 @@ function showStart() {
   WPStation.begin();
 }
 
+function startTrial() {
+  if (stationCanPlay() || stationSnapshot.phase === 'setup') return;
+  freePlay = true;
+  startRound();
+}
+
 function startRound() {
   // The whole start screen is a tap target, so an unclaimed tap must be inert:
   // re-minting here would swap the QR out from under someone mid-scan. Only a
   // finished run hands the station on (fresh QR for the next player).
-  if (!stationCanPlay()) {
+  // Someone scanned (or the station went offline): their run, not a trial.
+  if (stationCanPlay()) freePlay = false;
+  else if (!freePlay) {
     if (stationSnapshot.phase === 'done') showStart();
     return;
   }
-  WPStation.started();
+  if (!freePlay) WPStation.started();
+  renderStation(stationSnapshot);
   clearAllTimers();
   stopConfetti();
   applyPendingConfig();
@@ -1518,7 +1542,7 @@ async function initHands() {
   }
   try {
     setCamStatus('loading', COPY.cam.loading);
-    const vis = await import(HAND.VISION_URL);
+    const vis = await import(HAND.VISION_URL + '/vision_bundle.mjs');
     const files = await vis.FilesetResolver.forVisionTasks(HAND.VISION_URL + '/wasm');
     const opts = (delegate) => ({
       baseOptions: { modelAssetPath: HAND.MODEL_URL, delegate: delegate },
@@ -1648,13 +1672,13 @@ function mapToStage() {
 function findTarget(x, y) {
   const r = stage.getBoundingClientRect();
   const el = document.elementFromPoint(r.left + x, r.top + y);
-  const t = el ? el.closest('.card, #startBtn, #playAgainBtn') : null;
+  const t = el ? el.closest('.card, #startBtn, #trialBtn, #playAgainBtn') : null;
   if (!t) return { el: null, valid: false };
   let valid = false;
   if (t.classList.contains('card')) {
     valid = state.phase === 'play' && !state.lock &&
       !t.classList.contains('is-flipped') && !t.classList.contains('is-matched');
-  } else if (t === startBtn) {
+  } else if (t === startBtn || t === trialBtn) {
     valid = state.phase === 'start';
   } else if (t === playAgainBtn) {
     valid = state.phase === 'won' && !resultScreen.classList.contains('hidden');
@@ -1664,6 +1688,7 @@ function findTarget(x, y) {
 
 function fireTarget(target) {
   if (target.classList.contains('card')) onCardTap(target);
+  else if (target === trialBtn) startTrial();
   else startRound();
   cursorInner.classList.remove('is-fire');
   void cursorInner.offsetWidth;
@@ -1776,6 +1801,10 @@ grid.addEventListener('pointerdown', (e) => {
   if (!card) return;
   e.preventDefault();
   onCardTap(card);
+});
+trialBtn.addEventListener('click', (e) => {
+  e.stopPropagation();   // the start screen behind it is a tap target too
+  if (!mouseIsHand(e) && state.phase === 'start') startTrial();
 });
 startScreen.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'start') startRound(); });
 playAgainBtn.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'won') startRound(); });
