@@ -1463,7 +1463,8 @@
           case "pending":
             return (
               "SCAN TO PLAY \u00b7 " + where + "\nPoint your phone camera at the code" +
-              "\nNew to CCE Play? Sign up at cceplay.com first, then scan"
+              "\nNew to CCE Play? Sign up at cceplay.com first, then scan" +
+              "\nOr press the button for a free trial (not saved)"
             );
           case "claimed":
             return (
@@ -1703,7 +1704,12 @@
           (currentState === "START" || currentState === "GAMEOVER") &&
           !gameOverCooldown
         ) {
-          startCountdown();
+          // Nobody scanned yet: the arcade button (any key / tap) starts a
+          // free trial instead of sitting inert. startTrial() refuses while
+          // the staff setup overlay is up, and once someone scans this same
+          // press starts THEIR run.
+          if (currentState === "START" && !stationCanPlay()) startTrial();
+          else startCountdown();
         }
       }
 

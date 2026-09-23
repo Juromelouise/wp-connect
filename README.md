@@ -131,7 +131,10 @@ key, and nothing is posted to CCE Play - the run is simply dropped (the HUD chip
 result screen says TRIAL RUN - NOT SAVED). It is the same game file (`index.html?trial=1`) with the
 network script swapped for a stub (`station-trial.js`), so card sets, board size, skins and
 branding from each `admin.html` all apply. Use it to try a config or to let people play for fun; the
-leaderboard only takes runs from the real station screen. Flip Match's other switches pass through
+leaderboard only takes runs from the real station screen. The real station offers the same thing while its QR
+is up and nobody has scanned: on WP Flappy Challenge **any key / tap** starts a free trial, on Flip Match a **fist
+(or tap) anywhere on the start screen** does; the HUD says FREE PLAY and nothing is posted. Once someone scans,
+that same press starts *their* run instead. Flip Match's other switches pass through
 (`trial.html?input=touch` for a touch-only trial, `?input=mouse` to drive the hand cursor with a mouse -
 holding the left button is the fist).
 

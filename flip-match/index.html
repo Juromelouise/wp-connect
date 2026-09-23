@@ -1231,7 +1231,7 @@ function stationCopy(s) {
     case 'setup':      return 'WAITING FOR STAFF SETUP…';
     case 'idle':
     case 'minting':    return 'GETTING YOUR CODE…';
-    case 'pending':    return 'SCAN TO PLAY · ' + where + '\nPoint your phone camera at the code\nNew to CCE Play? Sign up at cceplay.com first, then scan';
+    case 'pending':    return 'SCAN TO PLAY · ' + where + '\nPoint your phone camera at the code\nNew to CCE Play? Sign up at cceplay.com first, then scan\nOr make a fist anywhere for a free trial (not saved)';
     case 'claimed':    return "YOU'RE UP" + (s.player && s.player.username ? ', ' + s.player.username.toUpperCase() : '') + ' — PRESS START\nNot you? Ask staff, or the code resets in 2 min';
     case 'submitting': return 'SAVING YOUR RUN…';
     case 'done':       return 'SAVED! CHECK THE LEADERBOARD ON CCE PLAY';
@@ -1320,18 +1320,14 @@ function showStart() {
   WPStation.begin();
 }
 
-function startTrial() {
-  if (stationCanPlay() || stationSnapshot.phase === 'setup') return;
-  freePlay = true;
-  startRound();
-}
-
 function startRound() {
-  // The whole start screen is a tap target, so an unclaimed tap must be inert:
-  // re-minting here would swap the QR out from under someone mid-scan. Only a
-  // finished run hands the station on (fresh QR for the next player).
-  // Someone scanned (or the station went offline): their run, not a trial.
+  // The whole start screen is a tap / fist target. Someone scanned (or the
+  // station went offline): their run. Nobody scanned yet: a free trial, like
+  // the arcade button on WP Flappy. Never re-mint here - that would swap the
+  // QR out from under someone mid-scan; only a finished run hands the station
+  // on (fresh QR for the next player).
   if (stationCanPlay()) freePlay = false;
+  else if (state.phase === 'start' && stationSnapshot.phase !== 'setup') freePlay = true;
   else if (!freePlay) {
     if (stationSnapshot.phase === 'done') showStart();
     return;
@@ -1672,7 +1668,7 @@ function mapToStage() {
 function findTarget(x, y) {
   const r = stage.getBoundingClientRect();
   const el = document.elementFromPoint(r.left + x, r.top + y);
-  const t = el ? el.closest('.card, #startBtn, #trialBtn, #playAgainBtn') : null;
+  const t = el ? el.closest('.card, #startBtn, #trialBtn, #playAgainBtn, #startScreen') : null;
   if (!t) return { el: null, valid: false };
   let valid = false;
   if (t.classList.contains('card')) {
@@ -1680,6 +1676,10 @@ function findTarget(x, y) {
       !t.classList.contains('is-flipped') && !t.classList.contains('is-matched');
   } else if (t === startBtn || t === trialBtn) {
     valid = state.phase === 'start';
+  } else if (t === startScreen) {
+    // nobody scanned: a fist anywhere on the start screen is the free trial
+    // (the trial button alone is too slim a target for a jittery hand)
+    valid = state.phase === 'start' && !stationCanPlay();
   } else if (t === playAgainBtn) {
     valid = state.phase === 'won' && !resultScreen.classList.contains('hidden');
   }
@@ -1688,7 +1688,6 @@ function findTarget(x, y) {
 
 function fireTarget(target) {
   if (target.classList.contains('card')) onCardTap(target);
-  else if (target === trialBtn) startTrial();
   else startRound();
   cursorInner.classList.remove('is-fire');
   void cursorInner.offsetWidth;
@@ -1804,7 +1803,7 @@ grid.addEventListener('pointerdown', (e) => {
 });
 trialBtn.addEventListener('click', (e) => {
   e.stopPropagation();   // the start screen behind it is a tap target too
-  if (!mouseIsHand(e) && state.phase === 'start') startTrial();
+  if (!mouseIsHand(e) && state.phase === 'start') startRound();
 });
 startScreen.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'start') startRound(); });
 playAgainBtn.addEventListener('click', (e) => { if (!mouseIsHand(e) && state.phase === 'won') startRound(); });
